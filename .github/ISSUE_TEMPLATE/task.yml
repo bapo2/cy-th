@@ -1,0 +1,37 @@
+name: 🚧 Task Issue
+description: Track progress on a specific task or work item.
+labels:
+  - 'kind: TASK'
+assignees:
+  - bapo2
+body:
+- type: "textarea"
+  attributes:
+    label: "🎯 Outcome"
+    description: "What concrete result should exist when this issue is complete?"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "📖 Context"
+    description: "Provide any background, prior decisions, links, or rationale that would help someone understand why this issue exists. Leave blank if the title and outcome already provide sufficient context."
+  validations:
+    required: false
+- type: "textarea"
+  attributes:
+    label: "🔒 Constraints / Invariants"
+    description: "List requirements that must remain true throughout implementation, such as correctness constraints, assumptions, exclusions, or performance requirements. Leave blank if there are no notable constraints beyond the project's normal conventions."
+  validations:
+    required: false
+- type: "textarea"
+  attributes:
+    label: "✅ Acceptance Criteria"
+    description: "What observable conditions must be satisfied before this issue can be closed? This can also be used to list child issues if this work item is a parent task."
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "📝 Notes / References"
+    description: "Record anything that may be useful during implementation, such as ideas, references, risks, or observations. Leave blank if there is nothing worth capturing beyond the issue itself."
+  validations:
+    required: false

@@ -1,0 +1,43 @@
+name: 🔬 Research Issue
+description: Investigate a specific problem or opportunity.
+labels:
+  - 'kind: RESEARCH'
+assignees:
+  - bapo2
+body:
+- type: "textarea"
+  attributes:
+    label: "❓ Question"
+    description: "What specific question is this research intended to answer?"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "🎯 Decision Enabled"
+    description: "What implementation or architectural decision will this research inform?"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "🔬 Methodology"
+    description: "How will this question be investigated? Describe the planned experiments, analysis, datasets, or sources."
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "📊 Evidence Threshold"
+    description: "What evidence is sufficient to reach a conclusion?"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "📦 Deliverables"
+    description: "What artifacts or outputs must exist before this issue can be closed?"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "📝 Notes / References"
+    description: "Capture supporting references, hypotheses, observations, or anything else that may aid the investigation. Leave blank if there is nothing additional to record."
+  validations:
+    required: false

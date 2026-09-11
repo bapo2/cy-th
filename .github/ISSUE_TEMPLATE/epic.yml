@@ -1,0 +1,31 @@
+name: 📂 Epic Issue
+description: Create an epic of multiple pieces of work building on one central goal.
+labels:
+  - 'kind: EPIC'
+assignees:
+  - bapo2
+body:
+- type: "textarea"
+  attributes:
+    label: "🎯 Goal"
+    description: "What larger result should this epic deliver?"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "📖 Context"
+    description: "Briefly capture any important background, scope, or prior decisions. Leave blank if unnecessary."
+  validations:
+    required: false
+- type: "textarea"
+  attributes:
+    label: "🧩 Work Items"
+    description: "List the task issues that make up this epic."
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "✅ Completion Criteria"
+    description: "What must be true for the epic itself to be considered complete?"
+  validations:
+    required: true
