@@ -1,0 +1,21 @@
+# Python-specific caches/artifacts
+__pycache__/
+.venv/
+*.py[cod]
+*$py.class
+
+# Packaging/build artifacts
+build/
+dist/
+*.egg-info/
+src/*.egg-info/
+
+# Test/tooling/etc. caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Smoke tests + local-only scripts
+scripts/
