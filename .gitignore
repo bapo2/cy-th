@@ -17,5 +17,6 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Smoke tests + local-only scripts
+# Smoke tests + local-only stuff
 scripts/
+notes/
