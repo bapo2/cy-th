@@ -35,7 +35,9 @@ Award summaries and award-detail responses are useful for validation or selectiv
 | Modification         | `modification_number`             | Transaction         | Modification associated with the transaction                             |
 | Transaction sequence | `transaction_number`              | Transaction         | Distinguishes transactions within a modification                         |
 
-`award_id_piid` must not replace the generated award key as the primary source identity, as a single modification *can contain more than one transaction number.*
+`award_id_piid` must not replace the generated award key as the primary source identity.
+
+A single modification *can contain more than one transaction number.*
 
 ## 3. Transaction Activity
 
@@ -63,13 +65,13 @@ This value is derived from transaction activity. It's not the lifetime obligatio
 
 Transaction exports contain several denormalized fields that describe the state of the parent Award.
 
-| Concept               | Transaction Field                          | Other Source Equivalent                                     | Notes                                      |
-| :-------------------- | :----------------------------------------- | :---------------------------------------------------------- | :----------------------------------------- |
-| Lifetime Obligation   | `total_dollars_obligated`                  | Award: `total_obligated_amount`; Detail: `total_obligation` | Observed rolled-up award state             |
-| Current Award Value   | `current_total_value_of_award`             | Detail: `base_exercised_options`                            | Observed current value                     |
-| Potential Award Value | `potential_total_value_of_award`           | Detail: `base_and_all_options`                              | Observed value including potential options |
-| Total Outlay          | `total_outlayed_amount_for_overall_award`  | Award: `total_outlayed_amount`                              | Can be absent                              |
-| Award Description     | `prime_award_base_transaction_description` | Award/detail equivalent                                     | Base description of the award              |
+| Concept               | Transaction Field                          | Other Source Equivalent                                                 | Notes                                      |
+| :-------------------- | :----------------------------------------- | :---------------------------------------------------------------------- | :----------------------------------------- |
+| Lifetime Obligation   | `total_dollars_obligated`                  | Award: `total_obligated_amount`; Detail: `total_obligation`             | Observed rolled-up award state             |
+| Current Award Value   | `current_total_value_of_award`             | Award: `current_total_value_of_award`; Detail: `base_exercised_options` | Observed current value                     |
+| Potential Award Value | `potential_total_value_of_award`           | Award: `potential_total_value_of_award`; Detail: `base_and_all_options` | Observed value including potential options |
+| Total Outlay          | `total_outlayed_amount_for_overall_award`  | Award: `total_outlayed_amount`                                          | Can be absent                              |
+| Award Description     | `prime_award_base_transaction_description` | Award/detail equivalent                                                 | Base description of the award              |
 
 ### 4.1 Snapshot Caveat
 
@@ -103,7 +105,7 @@ MAX(action_date)
 
 Gives the latest **observed** action in that loaded transaction set.
 
-It m**ust not be interpreted as the latest lifetime action** *unless the complete Award history is present.*
+It **must not be interpreted as the latest lifetime action** *unless the complete Award history is present.*
 
 ## 6. Recipient
 
@@ -251,7 +253,7 @@ Their text is source evidence. Semantic labels inferred from the text are derive
 
 | Concept          | Source Field            | Grain               | Meaning / Notes           |
 | :--------------- | :---------------------- | :------------------ | :------------------------ |
-| USASpending Link | `USASpending_permalink` | Transaction / Award | Human-readable Award page |
+| USASpending Link | `usaspending_permalink` | Transaction / Award | Human-readable Award page |
 
 The source permalink is **useful for user-facing citations.**
 

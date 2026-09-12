@@ -2,7 +2,7 @@
 
 This document describes the parts of USASpending that are relevant to the project. It defines the main source concepts, identifiers, time semantics, and monetary semantics.
 
-*It doesn't define the the project's storage model or knowledge graph representation.*
+*It doesn't define the project's storage model or knowledge graph representation.*
 
 ## 1. Source Scope
 
@@ -156,7 +156,7 @@ Over the transactions in that range (this is a transaction-derived value).
 
 ### 6.2 Lifetime Obligation
 
-`total_dollars_obligated` is present on transaction records and represents rolled-up award obligation state observed at that transaction.
+`total_dollars_obligated` is present on transaction records and represents observed rolled-up award obligation state on that row.
 
 Award summaries expose the corresponding concept as `total_obligated_amount`.
 
@@ -203,7 +203,7 @@ The API also exposes this concept as `generated_internal_id` or `generated_uniqu
 CONT_AWD_{piid}_{agency}_{parent_piid}_{parent_agency}
 ```
 
-Parent portions can be absent.
+Parent portions can be absent, but standalone awards still use placeholder values for said portions.
 
 `award_id_piid` is the procurement PIID. It is useful as a human-facing identifier but *should not replace the generated award key* as the main USASpending identity.
 
@@ -280,7 +280,7 @@ Transaction records can also contain transaction-specific descriptions.
 
 These fields are useful for semantic retrieval, but they're less structured than fields such as PSC, NAICS, agency, or obligation amount.
 
-USASpending also provides `USASpending_permalink`, which links to the human-readable award page (which will likely be useful for citation and source inspection).
+USASpending also provides `usaspending_permalink`, which links to the human-readable award page (which will likely be useful for citation and source inspection).
 
 ## 12. Relevant API Surfaces
 
