@@ -41,3 +41,9 @@ source = ["cy_th"]
 show_missing = true
 skip_empty = true
 fail_under = 90
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+extraPaths = ["src", "."]
