@@ -136,3 +136,6 @@ def column(
     """Build a `ColumnSpec` (we use keyword `nullable` for call-site clarity)."""
 
     return ColumnSpec(name=name, type=type, nullable=nullable, description=description)
+
+MONEY: Final[TypeSpec] = decimal(20, 2)
+"""Canonical money type for obligations and observed Award values."""
