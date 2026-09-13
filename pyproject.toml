@@ -3,5 +3,54 @@ name = "cy-th"
 version = "0.1.0"
 description = "A chatbot-based application for answering queries about DoD contract awards"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12.10"
 dependencies = []
+
+[project.scripts]
+clear-test-cache = "cy_th.dev:main_clear_test_cache"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cy_th"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--cov=cy_th",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]
+markers = [
+    "network: hits USASpending when local cache/TEMP extracts are unavailable",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["cy_th"]
+omit = ["*/cy_th/dev.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 90
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+extraPaths = ["src", "."]
