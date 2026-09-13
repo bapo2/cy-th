@@ -7,13 +7,30 @@
 from hashlib import sha256
 from typing import Final
 
-from cy_th.schema.enums import ClassificationKind
+from cy_th.schema.enums import AgencyTier, ClassificationKind
 
 
 # === Constants ===
 
 _LOC_SEP: Final[str] = "\x1f"
 """Field separator for location canonicalization (unlikely in geo codes/names)."""
+
+
+# === Agency ===
+
+def agency_id(*, tier: AgencyTier, code: str) -> str:
+    """Build an `AgencyRef` ID from `(tier, code)`.
+
+    Uses the `*_agency_code` namespace (e.g. `097`), not award-key agency IDs (e.g. `9700`).
+
+    #### Form:
+        `{tier}:{code}` (e.g. `toptier:097`, `subtier:97AS`)
+    """
+
+    code_n = code.strip()
+    if not code_n:
+        raise ValueError("agency code must be non-empty")
+    return f"{tier.value}:{code_n}"
 
 
 # === Classification ===
