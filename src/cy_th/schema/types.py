@@ -2,7 +2,7 @@
 
 """Engine-neutral logical / storage types for canonical column contracts.
 
-These types describe what we store (`string`, `date`, `decimal`, …).
+These types describe what we store (`string`, `date`, `decimal`, ...).
 
 TODO: Physical binding to-be-determined when we choose an engine for the transform code.
 """
