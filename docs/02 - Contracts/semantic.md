@@ -47,8 +47,9 @@ Query embeddings **must use the same model and configuration as the indexed docu
 **Dependencies:**
 
 - **Build** requires `cy-th[semantic]` (`sentence-transformers` + transitive Torch). Missing deps fail immediately with an install hint.
-- **Search** over a published index requires only core deps (`numpy` + existing DuckDB/query stack). It must not import Torch / sentence-transformers.
-- Tests use a deterministic fake embedder. `--offline` means cached weights only (any CI shouldn't require downloading model weights).
+- **Index / scoring** (`SemanticIndex` + chunked cosine) needs only core deps (`numpy` + existing DuckDB/query stack) and doesn't import Torch / sentence-transformers itself.
+- **Real query encoding** needs an `Embedder` that can run the locked BGE model. Typically `SentenceTransformerEmbedder` from `cy-th[semantic]`. `SemanticIndex.open(ds, embedder)` injects said dep; tests use fake embedder.
+- `--offline` means cached weights only (CI must not require downloading model weights).
 
 ## 3. On-Disk Layout
 
@@ -178,7 +179,7 @@ with ProcurementDataset.open(".data") as ds:
     semantic_selection = ds.select_awards([h.award_id for h in hits])
 ```
 
-`SemanticIndex.open` takes an `Embedder` whose `model_id` / dimension must match the published index (search doesn't import sentence-transformers itself).
+`SemanticIndex.open` takes an `Embedder` whose `model_id` / dim / revision must match the published index. The index package scores with NumPy only; query vectors come from the injected embedder (BGE via `cy-th[semantic]` in prod, fake embedder in tests).
 
 **Open:**
 
