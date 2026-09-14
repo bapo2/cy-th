@@ -58,7 +58,7 @@ rows = dataset.aggregate_activity(selection, window, group_by=...)
 
 `AwardSelection` carries `relation_name`, `count`, and `session_id`. Aggregation JOINs that relation; IDs are not shipped through Python between stages.
 
-Semantic retrieval builds the same `AwardSelection` from hit IDs via `select_awards`. Fuzzy discovery lives in the [Semantic Search Contract](semantic.md).
+Semantic retrieval builds the same `AwardSelection` from hit IDs via `select_awards`. Fuzzy discovery lives in the [Semantic Search Contract](semantic.md). Relationship expansion from a selection lives in the [Relationship Traversal Contract](traversal.md).
 
 ## 4. Filter Semantics
 
