@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Literal, Sequence, Self, overload
+from typing import Collection, Literal, Self, overload
 import duckdb
 
 from cy_th.query.aggregate import aggregate_activity
@@ -76,7 +76,7 @@ class ProcurementDataset:
     @overload
     def aggregate_activity(  # Overload for `AwardActivityRow` to make type-checker happy
         self,
-        award_ids: Sequence[str],
+        award_ids: Collection[str],
         window: ActivityWindow,
         *,
         group_by: Literal[GroupBy.AWARD] = GroupBy.AWARD,
@@ -86,7 +86,7 @@ class ProcurementDataset:
     @overload
     def aggregate_activity(  # Overload for `RecipientActivityRow` to make type-checker happy
         self,
-        award_ids: Sequence[str],
+        award_ids: Collection[str],
         window: ActivityWindow,
         *,
         group_by: Literal[GroupBy.RECIPIENT],
@@ -95,7 +95,7 @@ class ProcurementDataset:
 
     def aggregate_activity(
         self,
-        award_ids: Sequence[str],
+        award_ids: Collection[str],
         window: ActivityWindow,
         *,
         group_by: GroupBy = GroupBy.AWARD,

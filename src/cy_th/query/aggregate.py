@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 from decimal import Decimal
-from typing import Literal, Sequence, overload
+from typing import Collection, Literal, overload
 import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
@@ -26,7 +26,7 @@ from cy_th.schema.db_types import quote_ident
 @overload
 def aggregate_activity(  # Overload for `AwardActivityRow` to make type-checker happy
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Sequence[str],
+    award_ids: Collection[str],
     window: ActivityWindow,
     *,
     group_by: Literal[GroupBy.AWARD] = GroupBy.AWARD,
@@ -36,7 +36,7 @@ def aggregate_activity(  # Overload for `AwardActivityRow` to make type-checker 
 @overload
 def aggregate_activity(  # Overload for `RecipientActivityRow` to make type-checker happy
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Sequence[str],
+    award_ids: Collection[str],
     window: ActivityWindow,
     *,
     group_by: Literal[GroupBy.RECIPIENT],
@@ -45,7 +45,7 @@ def aggregate_activity(  # Overload for `RecipientActivityRow` to make type-chec
 
 def aggregate_activity(
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Sequence[str],
+    award_ids: Collection[str],
     window: ActivityWindow,
     *,
     group_by: GroupBy = GroupBy.AWARD,
@@ -81,7 +81,7 @@ def aggregate_activity(
 
 def _aggregate_by_award(
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Sequence[str],
+    award_ids: Collection[str],
     window: ActivityWindow,
     *,
     limit: int | None,
@@ -134,7 +134,7 @@ def _aggregate_by_award(
 
 def _aggregate_by_recipient(
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Sequence[str],
+    award_ids: Collection[str],
     window: ActivityWindow,
     *,
     limit: int | None,
