@@ -199,6 +199,30 @@ with ProcurementDataset.open(".data") as ds:
 
 **Hits** include at least `award_id`, similarity `score`, inspectable `text` (and `document_id`). Semantic hit ID sets may be materialized through Python into `select_awards` (bounded `top_k`).
 
-## 7. Code Map
+## 7. CLI
 
-🚧 Add this when we have code to map 🚧
+```text
+cyth semantic build [--data-root .data] [--force] [--batch-size N] [--offline]
+```
+
+**Exit codes for `semantic build`:**
+
+| Code | Meaning                                                                                                 |
+| :--- | :------------------------------------------------------------------------------------------------------ |
+| `0`  | Index built and published successfully                                                                  |
+| `1`  | Failure (missing deps, missing/incompatible dataset/index, empty indexable set, validation error, etc.) |
+
+## 8. Code Map
+
+```text
+src/cy_th/semantic/
+├── paths.py      # derived / semantic / staging paths + locked constants
+├── types.py      # SemanticDocument, SemanticHit, metadata, build/search results
+├── errors.py     # missing/incompatible/build/query failures
+├── documents.py  # projection + assembly (budget, dedupe, omit rules)
+├── embed.py      # Embedder protocol + FakeEmbedder + SentenceTransformerEmbedder
+├── metadata.py   # metadata.json serialize / load
+├── build.py      # atomic build/publish + artifact validation
+├── search.py     # chunked exact cosine top-k scoring
+└── index.py      # SemanticIndex open / search / close
+```

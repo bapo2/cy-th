@@ -74,7 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     mat.set_defaults(handler=_cmd_materialize)
 
-    # Semantic subcommand
+    # Semantic subcommand(s)
     sem = sub.add_parser(
         "semantic",
         help="derived semantic index build / maintenance",
