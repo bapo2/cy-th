@@ -155,9 +155,10 @@ Always retained on the result for debugging and tests. Do not dump the full trac
 
 ## 6. Provider
 
-- **One implementation (to start):** Just OpenAI Responses API function tools for now
-- Config: `OPENAI_API_KEY`; `CYTH_MODEL` optional (default `gpt-5.6-sol`)
-- Thin `ModelClient` protocol for test injection (`FakeModelClient`)
+- **Protocol-first:** agent loop depends only on a thin `ModelClient` protocol (injectable for tests / alternate backends)
+- **Initial adapter:** OpenAI Responses API function tools (`OpenAIResponsesClient`)
+- OpenAI env: `OPENAI_API_KEY`; `CYTH_MODEL` optional (default `gpt-5.6-sol`)
+- Additional providers can plug in by implementing `ModelClient` (not required yet)
 
 ## 7. Prompt / Policy
 

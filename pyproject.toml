@@ -13,6 +13,9 @@ dependencies = [
 semantic = [
     "sentence-transformers>=3.0",
 ]
+agent = [
+    "openai>=1.0",
+]
 
 [project.scripts]
 cyth = "cy_th.cli:main"

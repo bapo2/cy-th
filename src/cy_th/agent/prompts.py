@@ -1,6 +1,6 @@
 # cy_th/agent/prompts.py
 
-"""System prompt text for the procurement agent (code-authoritative)."""
+"""Prompt text literals for the procurement agent (code-authoritative)."""
 
 # === Imports ===
 
