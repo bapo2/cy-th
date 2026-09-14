@@ -76,12 +76,14 @@ Default root is `.data/` (which is gitignore'd). Overridden with `--out`.
 │           └── locations.parquet
 ├── CURRENT                           # plain run-ID string
 └── .staging/
-    └── <run-id>.duckdb               # deleted on success unless --keep-staging
+    └── <run-id>.duckdb
 ```
+
+Staging is **deleted on success** unless `--keep-staging` is used, while staging is **retained on failure** by default to help debug failed runs.
 
 **Run-ID form:** `YYYYMMDDTHHMMSSZ_<6 hex chars>` (uses UTC for tz).
 
-Sets are **immutable.** Reusing a run-ID that already exists fails. GC of old sets is manual for now.
+Sets are **immutable.** Each set is assembled under `.tmp-<run-id>/` and renamed into `sets/<run-id>/` only after every Parquet write succeeds, so a mid-write failure never leaves a partial set directory. Reusing a run-ID that already exists fails. GC of old sets is manual for now.
 
 ## 5. Rejects and CURRENT
 

@@ -87,7 +87,8 @@ Location identity is a **weak deterministic value-object:**
 (country_code, state_code, county_fips, normalized_city_name, zip)
 ```
 
-- Prefer codes; city is a normalized label fallback (`strip` + `casefold`)
+- Prefer codes; city is a normalized label fallback (`strip` + `lower()`)
+- Empty geo tuples → no `location_id` / no `LocationRef` row
 - Exclude congressional district from identity
 - Store `granularity` from `location_granularity()`
 
