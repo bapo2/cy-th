@@ -16,12 +16,6 @@ from cy_th.schema.enums import AgencyTier, ClassificationKind
 
 # === Enums ===
 
-class LocationRole(StrEnum):
-    """Which Award location FK a `LocationFilter` applies to."""
-
-    RECIPIENT = "recipient"
-    PLACE_OF_PERFORMANCE = "place_of_performance"
-
 class GroupBy(StrEnum):
     """Aggregation grouping for `aggregate_activity`."""
 
@@ -42,9 +36,9 @@ class EntityKind(StrEnum):
     CLASSIFICATION = "classification"
 
 class RelationRole(StrEnum):
-    """Procurement role on a traversal edge when the Award FK is role-typed.
+    """Procurement role on Award topology edges (filters + traversal).
 
-    Declaration order is the secondary sort key after `None` roles sort first.
+    Declaration order is the secondary sort key after `None` roles sort first. Location filters accept only `RECIPIENT` / `PLACE_OF_PERFORMANCE`.
     """
 
     AWARDING = "awarding"
@@ -59,10 +53,10 @@ class RelationRole(StrEnum):
 class LocationFilter:
     """Exact location predicate against projected Award topology.
 
-    Set either `location_ids` or one/more structured fields (not fuzzy matching). Structured fields AND'd together when multiple are provided.
+    `role` must be `RelationRole.RECIPIENT` or `RelationRole.PLACE_OF_PERFORMANCE`. Set either `location_ids` or one/more structured fields. Structured fields AND'd together when multiple are provided.
     """
 
-    role: LocationRole
+    role: RelationRole
     location_ids: Sequence[str] | None = None
     country_code: str | None = None
     state_code: str | None = None

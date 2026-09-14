@@ -90,12 +90,12 @@ We'll opt to use canonical IDs everywhere (`toptier:097`, `NAICS:541330`, `locat
 
 ### 4.2 Location Filter
 
-**`LocationFilter.role` is required and explicit:**
+**`LocationFilter.role` is a required `RelationRole`:**
 
-- `recipient` → `award_record.recipient_location_id`
-- `place_of_performance` → `award_record.place_of_performance_id`
+- `RelationRole.RECIPIENT` → `award_record.recipient_location_id`
+- `RelationRole.PLACE_OF_PERFORMANCE` → `award_record.place_of_performance_id`
 
-We don't silently OR recipient and place-of-performance roles.
+Other `RelationRole` values are rejected. We don't silently OR recipient and place-of-performance roles.
 
 **Match either:**
 

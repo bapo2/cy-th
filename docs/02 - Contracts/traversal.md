@@ -69,6 +69,8 @@ Declaration order is the primary sort key.
 
 Used only when the Award edge has a meaningful procurement role. For recipient, IDV, and classification edges, `role` is `None` (we don't invent placeholder roles).
 
+`LocationFilter.role` uses the same `RelationRole` enum (only `RECIPIENT` / `PLACE_OF_PERFORMANCE` are valid there).
+
 We reuse existing schema enums for agency tier and classification discriminator: `AgencyTier` (`toptier` / `subtier`) and `ClassificationKind` (`NAICS` / `PSC`).
 
 ### 3.3 `RelatedEntity`
@@ -146,17 +148,17 @@ We'll avoid manufacturing composite strings such as `"{code}: {description}"` fo
 
 Returned `entity_id` values are intended for existing `AwardFilters` / `LocationFilter` fields:
 
-| Related Entity                  | Filter Field(s)                                |
-| :------------------------------ | :--------------------------------------------- |
-| Recipient                       | `recipient_ids`                                |
-| Agency + `AWARDING` + `TOPTIER` | `awarding_agency_ids`                          |
-| Agency + `AWARDING` + `SUBTIER` | `awarding_sub_agency_ids`                      |
-| Agency + `FUNDING` + `TOPTIER`  | `funding_agency_ids`                           |
-| Agency + `FUNDING` + `SUBTIER`  | `funding_sub_agency_ids`                       |
-| Office + `AWARDING` / `FUNDING` | `awarding_office_ids` / `funding_office_ids`   |
-| Location + role                 | `LocationFilter(role=..., location_ids=[...])` |
-| Classification `NAICS` / `PSC`  | `naics_ids` / `psc_ids`                        |
-| IDV                             | `parent_idv_ids`                               |
+| Related Entity                  | Filter Field(s)                                        |
+| :------------------------------ | :----------------------------------------------------- |
+| Recipient                       | `recipient_ids`                                        |
+| Agency + `AWARDING` + `TOPTIER` | `awarding_agency_ids`                                  |
+| Agency + `AWARDING` + `SUBTIER` | `awarding_sub_agency_ids`                              |
+| Agency + `FUNDING` + `TOPTIER`  | `funding_agency_ids`                                   |
+| Agency + `FUNDING` + `SUBTIER`  | `funding_sub_agency_ids`                               |
+| Office + `AWARDING` / `FUNDING` | `awarding_office_ids` / `funding_office_ids`           |
+| Location + role                 | `LocationFilter(role=entity.role, location_ids=[...])` |
+| Classification `NAICS` / `PSC`  | `naics_ids` / `psc_ids`                                |
+| IDV                             | `parent_idv_ids`                                       |
 
 Multi-hop questions (e.g. "other agencies that awarded to these recipients") are **caller composition:** traverse → filter IDs → `resolve_awards` → traverse again. Traversal itself stays one-hop.
 

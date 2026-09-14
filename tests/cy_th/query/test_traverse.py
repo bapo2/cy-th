@@ -15,7 +15,6 @@ from cy_th.query.types import (
     AwardFilters,
     EntityKind,
     LocationFilter,
-    LocationRole,
     RelationRole,
 )
 from cy_th.schema.enums import AgencyTier, ClassificationKind
@@ -295,7 +294,7 @@ def test_handoff_into_structured_filters(traverse_data_root: Path) -> None:
         pop_awards = ds.resolve_awards(
             AwardFilters(
                 location=LocationFilter(
-                    role=LocationRole.PLACE_OF_PERFORMANCE,
+                    role=RelationRole.PLACE_OF_PERFORMANCE,
                     location_ids=pops,
                 )
             )

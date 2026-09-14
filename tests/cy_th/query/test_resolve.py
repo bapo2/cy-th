@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from cy_th.query.dataset import ProcurementDataset
-from cy_th.query.types import AwardFilters, LocationFilter, LocationRole
+from cy_th.query.types import AwardFilters, LocationFilter, RelationRole
 from cy_th.schema.enums import AgencyTier, ClassificationKind
 from cy_th.schema.keys import agency_id, classification_id, office_id
 
@@ -88,7 +88,7 @@ def test_location_role_is_not_silently_ored(dataset: ProcurementDataset) -> None
             dataset.resolve_awards(
                 AwardFilters(
                     location=LocationFilter(
-                        role=LocationRole.PLACE_OF_PERFORMANCE,
+                        role=RelationRole.PLACE_OF_PERFORMANCE,
                         state_code="VA",
                     )
                 )
@@ -98,7 +98,7 @@ def test_location_role_is_not_silently_ored(dataset: ProcurementDataset) -> None
             dataset.resolve_awards(
                 AwardFilters(
                     location=LocationFilter(
-                        role=LocationRole.RECIPIENT,
+                        role=RelationRole.RECIPIENT,
                         state_code="VA",
                     )
                 )
@@ -113,7 +113,7 @@ def test_location_structured_city_normalized(dataset: ProcurementDataset) -> Non
             dataset.resolve_awards(
                 AwardFilters(
                     location=LocationFilter(
-                        role=LocationRole.PLACE_OF_PERFORMANCE,
+                        role=RelationRole.PLACE_OF_PERFORMANCE,
                         state_code="MD",
                         city_name=" BETHESDA ",
                     )
@@ -127,7 +127,7 @@ def test_location_ids_empty_zero_matches(dataset: ProcurementDataset) -> None:
         sel = dataset.resolve_awards(
             AwardFilters(
                 location=LocationFilter(
-                    role=LocationRole.PLACE_OF_PERFORMANCE,
+                    role=RelationRole.PLACE_OF_PERFORMANCE,
                     location_ids=[],
                 )
             )
@@ -138,7 +138,19 @@ def test_location_filter_requires_predicates(dataset: ProcurementDataset) -> Non
     with dataset:
         with pytest.raises(ValueError, match="LocationFilter requires"):
             dataset.resolve_awards(
-                AwardFilters(location=LocationFilter(role=LocationRole.RECIPIENT))
+                AwardFilters(location=LocationFilter(role=RelationRole.RECIPIENT))
+            )
+
+def test_location_filter_rejects_non_location_roles(dataset: ProcurementDataset) -> None:
+    with dataset:
+        with pytest.raises(ValueError, match="PLACE_OF_PERFORMANCE"):
+            dataset.resolve_awards(
+                AwardFilters(
+                    location=LocationFilter(
+                        role=RelationRole.AWARDING,
+                        state_code="VA",
+                    )
+                )
             )
 
 def test_select_awards_from_explicit_ids(dataset: ProcurementDataset) -> None:
