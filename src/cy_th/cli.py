@@ -161,6 +161,35 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     ingest_cmd.set_defaults(handler=_cmd_ingest)
 
+    # Ask subcommand (procurement agent)
+    ask = sub.add_parser(
+        "ask",
+        help="answer a natural-language procurement question over CURRENT",
+    )
+    ask.add_argument(
+        "question",
+        help="question to answer from the local procurement dataset",
+    )
+    ask.add_argument(
+        "--data-root",
+        default=".data",
+        metavar="DIR",
+        help="data root containing CURRENT / sets (default: .data/)",
+    )
+    ask.add_argument(
+        "--provider",
+        default=None,
+        metavar="NAME",
+        help="model provider (default: openai, or CYTH_PROVIDER)",
+    )
+    ask.add_argument(
+        "--model",
+        default=None,
+        metavar="ID",
+        help="provider model id (default: adapter / CYTH_MODEL)",
+    )
+    ask.set_defaults(handler=_cmd_ask)
+
     return parser
 
 
@@ -316,6 +345,77 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         return 0
     print("  CURRENT:     (not published)")
     return 2
+
+def _cmd_ask(args: argparse.Namespace) -> int:
+    """Open a model provider + ProcurementAgent, answer one question, print text + citations."""
+
+    from cy_th.agent.agent import ProcurementAgent
+    from cy_th.agent.errors import (
+        AgentError,
+        MissingModelKeyError,
+        MissingOpenAIDepsError,
+    )
+    from cy_th.agent.prompts import SYSTEM_PROMPT
+    from cy_th.agent.providers.resolve import open_model_session
+    from cy_th.agent.submit import TerminationReason
+
+    question = str(args.question).strip()
+    if not question:
+        print("error: question must be non-empty", file=sys.stderr)
+        return 1
+
+    try:
+        model = open_model_session(
+            args.provider,
+            instructions=SYSTEM_PROMPT,
+            model=args.model,
+        )
+    except MissingOpenAIDepsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except MissingModelKeyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except AgentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        with ProcurementAgent.open(args.data_root, model_session=model) as agent:
+            result = agent.answer(question)
+    except (AgentError, QueryError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        model.close()
+
+    print(result.text.rstrip())
+    print()
+    if result.citations:
+        print("Citations:")
+        for index, card in enumerate(result.citations, start=1):
+            label = card.piid or card.award_id
+            print(f"  {index}. {label}")
+            if card.piid and card.piid != card.award_id:
+                print(f"     award_id:  {card.award_id}")
+            if card.recipient_name:
+                print(f"     recipient: {card.recipient_name}")
+            if card.usaspending_permalink:
+                print(f"     link:      {card.usaspending_permalink}")
+    else:
+        print("Citations: (none)")
+
+    if result.dropped_citation_ids:
+        print(f"Dropped unknown citation ids: {', '.join(result.dropped_citation_ids)}")
+
+    if result.termination_reason is not TerminationReason.ANSWERED:
+        print(
+            f"({result.termination_reason.value}; rounds={result.rounds} "
+            f"tool_calls={result.tool_calls})",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 # === Paths ===
