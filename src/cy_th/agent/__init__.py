@@ -1,3 +1,3 @@
 # cy_th/agent/__init__.py
 
-"""Bounded procurement agent over the evidence tool surface."""
+"""Procurement agent package (model session + orchestration over evidence tools)."""
