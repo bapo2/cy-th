@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import secrets
 from types import TracebackType
-from typing import Collection, Self, Sequence
+from typing import Collection, Mapping, Self, Sequence
 
 from cy_th.evidence.errors import (
     ClosedEvidenceSessionError,
@@ -116,7 +116,14 @@ class EvidenceSession:
     def run_id(self) -> str:
         return self.dataset.run_id
 
-    # --- Tool surface ---
+    def acquired_award_cards(self) -> Mapping[str, AwardCard]:
+        """Award citation cards retained in this session (by `award_id`).
+
+        Used by the procurement agent for citation membership.
+        """
+
+        self._ensure_open()
+        return dict(self._award_cards)
 
     def search_contract_work(
         self,
@@ -201,8 +208,6 @@ class EvidenceSession:
             limit=limit,
         )
 
-    # --- Lifecycle ---
-
     def close(self) -> None:
         """Release semantic (if any) + dataset; invalidate refs and registry."""
 
@@ -235,8 +240,6 @@ class EvidenceSession:
         tb: TracebackType | None,
     ) -> None:
         self.close()
-
-    # --- Registry (tools / tests) ---
 
     def _mint_selection(
         self,

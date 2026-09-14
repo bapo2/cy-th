@@ -13,7 +13,7 @@ Canonical Parquet is authoritative ([Materialization](materialization.md), [Reco
 ```text
 User Question
 	→ ProcurementAgent (one EvidenceSession per question)
-	→ ModelClient (OpenAI Responses, or injected FakeModelClient)
+	→ ModelClient (model Responses, or injected FakeModelClient)
 	→ tool calls: five evidence ops + submit_answer
 	→ AgentAnswer (text, validated citations, trace, termination)
 ```
@@ -37,7 +37,7 @@ The agent terminates only by calling `submit_answer`. *Prose alone is not a vali
 **It must not:**
 
 - Access DuckDB, Parquet paths, semantic-index internals, or raw `AwardSelection` values
-- Add Anthropic or untested "OpenAI-compatible" providers until we verify one model provider is working stably
+- Add other model providers until we verify one model provider is working stably (OpenAI is what we'll implement initially)
 - Treat free-text model output as the terminal answer (no regex extraction of citations)
 - Fail the whole answer solely because some citation IDs were unknown
 
@@ -53,7 +53,7 @@ ProcurementAgent.close() → close EvidenceSession
 
 - Context-manager form is supported
 - Semantic resources remain lazy inside `EvidenceSession`
-- `ModelClient` may be injected (tests); otherwise an OpenAI Responses client is constructed when needed
+- `ModelClient` may be injected (tests); otherwise a model client is constructed when needed
 
 ## 3. Loop Protocol
 
@@ -155,7 +155,7 @@ Always retained on the result for debugging and tests. Do not dump the full trac
 
 ## 6. Provider
 
-- **One implementation (to start):** OpenAI Responses API function tools
+- **One implementation (to start):** Just OpenAI Responses API function tools for now
 - Config: `OPENAI_API_KEY`; `CYTH_MODEL` optional (default `gpt-5.6-sol`)
 - Thin `ModelClient` protocol for test injection (`FakeModelClient`)
 
@@ -177,7 +177,7 @@ Always retained on the result for debugging and tests. Do not dump the full trac
 
 - Closed agent
 - Invalid budgets / requests
-- Missing API key when constructing the live OpenAI client
+- Missing API key when constructing the live model client
 - Underlying evidence errors surfaced as **tool observations** when recoverable inside the loop
 
 Provider failures that abort the run yield `termination_reason=ERROR` rather than fabricated evidence.
