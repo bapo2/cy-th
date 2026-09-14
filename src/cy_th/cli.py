@@ -13,6 +13,12 @@ from typing import Sequence
 
 from cy_th.materialize.pipeline import materialize
 from cy_th.materialize.publish import IntegrityError
+from cy_th.query.dataset import ProcurementDataset
+from cy_th.query.errors import QueryError
+from cy_th.semantic.build import build_semantic_index
+from cy_th.semantic.embed import SentenceTransformerEmbedder
+from cy_th.semantic.errors import SemanticError
+from cy_th.semantic.paths import DEFAULT_EMBED_BATCH_SIZE, DEFAULT_MODEL_ID
 
 
 # === Entrypoint ===
@@ -67,6 +73,41 @@ def _build_parser() -> argparse.ArgumentParser:
         help="retain .staging/<run-id>.duckdb after a successful run (failed runs keep it)",
     )
     mat.set_defaults(handler=_cmd_materialize)
+
+    # Semantic subcommand
+    sem = sub.add_parser(
+        "semantic",
+        help="derived semantic index build / maintenance",
+    )
+    sem_sub = sem.add_subparsers(dest="semantic_command", required=True)
+    sem_build = sem_sub.add_parser(
+        "build",
+        help="build the semantic index for the pinned CURRENT dataset",
+    )
+    sem_build.add_argument(
+        "--data-root",
+        default=".data",
+        metavar="DIR",
+        help="data root containing CURRENT / sets / derived (default: .data/)",
+    )
+    sem_build.add_argument(
+        "--force",
+        action="store_true",
+        help="replace an existing published semantic index for this run-ID",
+    )
+    sem_build.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_EMBED_BATCH_SIZE,
+        metavar="N",
+        help=f"embedding batch size (default: {DEFAULT_EMBED_BATCH_SIZE})",
+    )
+    sem_build.add_argument(
+        "--offline",
+        action="store_true",
+        help="use only cached model weights (no download)",
+    )
+    sem_build.set_defaults(handler=_cmd_semantic_build)
 
     # Test-cache clear subcommand
     clear = sub.add_parser(
@@ -138,6 +179,44 @@ def _cmd_materialize(args: argparse.Namespace) -> int:
 
     print("  CURRENT:         (not updated; rejects present; pass --allow-rejects)")
     return 2
+
+def _cmd_semantic_build(args: argparse.Namespace) -> int:
+    """Build/publish the derived semantic index for the pinned CURRENT set."""
+
+    if args.batch_size <= 0:
+        print("error: --batch-size must be > 0", file=sys.stderr)
+        return 1
+
+    try:
+        embedder = SentenceTransformerEmbedder(
+            DEFAULT_MODEL_ID,
+            local_files_only=bool(args.offline),
+        )
+    except SemanticError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        with ProcurementDataset.open(args.data_root) as dataset:
+            result = build_semantic_index(
+                dataset,
+                embedder,
+                force=bool(args.force),
+                batch_size=int(args.batch_size),
+            )
+    except (SemanticError, QueryError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print("semantic build complete")
+    print(f"  run_id:     {result.run_id}")
+    print(f"  data_root:  {result.data_root}")
+    print(f"  semantic:   {result.semantic_path}")
+    print(f"  documents:  {result.document_count}")
+    print(f"  model_id:   {result.model_id}")
+    print(f"  forced:     {result.forced}")
+    print(f"  offline:    {bool(args.offline)}")
+    return 0
 
 def _cmd_clear_test_cache(_args: argparse.Namespace) -> int:
     """Delete `tests/.cache/` under the repository root."""
