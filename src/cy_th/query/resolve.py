@@ -44,13 +44,14 @@ def resolve_awards(
     filters: AwardFilters | None = None,
     *,
     relation_name: str,
+    session_id: str,
 ) -> AwardSelection:
     """Materialize qualifying Award IDs into a temp table named `relation_name`.
 
     #### Semantics:
         - Filter list `None` → unconstrained
         - Empty iterable → zero matches (we don't treat as "all")
-        - Result is an `AwardSelection` for JOIN-based aggregation
+        - Result is an `AwardSelection` bound to `session_id` for JOIN-based aggregation
     """
 
     filters = filters if filters is not None else AwardFilters()
@@ -64,14 +65,18 @@ def resolve_awards(
         if values is None:
             continue
         if len(values) == 0:
-            return _empty_selection(conn, relation_name=relation_name)
+            return _empty_selection(
+                conn, relation_name=relation_name, session_id=session_id
+            )
         clauses.append(f"a.{quote_ident(column)} IN (SELECT UNNEST(?))")
         params.append(list(values))
 
     if filters.location is not None:
         loc_sql, loc_params, empty = _location_clause(filters.location)
         if empty:
-            return _empty_selection(conn, relation_name=relation_name)
+            return _empty_selection(
+                conn, relation_name=relation_name, session_id=session_id
+            )
         clauses.append(loc_sql)
         params.extend(loc_params)
 
@@ -87,13 +92,16 @@ def resolve_awards(
         """,
         params,
     )
-    return _selection_from_relation(conn, relation_name=relation_name)
+    return _selection_from_relation(
+        conn, relation_name=relation_name, session_id=session_id
+    )
 
 def select_awards(
     conn: duckdb.DuckDBPyConnection,
     award_ids: Collection[str],
     *,
     relation_name: str,
+    session_id: str,
 ) -> AwardSelection:
     """Materialize an `AwardSelection` from an explicit Award ID collection.
 
@@ -103,7 +111,9 @@ def select_awards(
     qname = quote_ident(relation_name)
     conn.execute(f"DROP TABLE IF EXISTS {qname}")
     if not award_ids:
-        return _empty_selection(conn, relation_name=relation_name)
+        return _empty_selection(
+            conn, relation_name=relation_name, session_id=session_id
+        )
 
     conn.execute(
         f"""
@@ -112,7 +122,9 @@ def select_awards(
         """,
         [list(award_ids)],
     )
-    return _selection_from_relation(conn, relation_name=relation_name)
+    return _selection_from_relation(
+        conn, relation_name=relation_name, session_id=session_id
+    )
 
 def selection_award_ids(
     conn: duckdb.DuckDBPyConnection,
@@ -215,6 +227,7 @@ def _empty_selection(
     conn: duckdb.DuckDBPyConnection,
     *,
     relation_name: str,
+    session_id: str,
 ) -> AwardSelection:
     """Create an empty temp Award ID table."""
 
@@ -223,16 +236,23 @@ def _empty_selection(
     conn.execute(
         f"CREATE TEMP TABLE {qname} ({quote_ident('award_id')} VARCHAR)"
     )
-    return AwardSelection(relation_name=relation_name, count=0)
+    return AwardSelection(
+        relation_name=relation_name, count=0, session_id=session_id
+    )
 
 def _selection_from_relation(
     conn: duckdb.DuckDBPyConnection,
     *,
     relation_name: str,
+    session_id: str,
 ) -> AwardSelection:
     """Build `AwardSelection` metadata for an existing temp relation."""
 
     qname = quote_ident(relation_name)
     row = conn.execute(f"SELECT COUNT(*) FROM {qname}").fetchone()
     assert row is not None
-    return AwardSelection(relation_name=relation_name, count=int(row[0]))
+    return AwardSelection(
+        relation_name=relation_name,
+        count=int(row[0]),
+        session_id=session_id,
+    )

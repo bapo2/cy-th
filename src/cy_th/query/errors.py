@@ -47,3 +47,10 @@ class UnreadableDatasetError(QueryError):
         self.run_id = run_id
         self.detail = detail
         super().__init__(f"unreadable dataset set {run_id}: {detail}")
+
+class StaleSelectionError(QueryError):
+    """Raised when an `AwardSelection` is used outside its owning open session."""
+
+    def __init__(self, *, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"stale AwardSelection: {detail}")

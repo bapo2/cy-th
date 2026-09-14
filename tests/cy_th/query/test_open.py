@@ -5,6 +5,7 @@
 # === Imports ===
 
 from __future__ import annotations
+from datetime import date
 from pathlib import Path
 import pytest
 
@@ -15,7 +16,9 @@ from cy_th.query.errors import (
     IncompleteDatasetError,
     InvalidRunIdError,
     MissingCurrentError,
+    StaleSelectionError,
 )
+from cy_th.query.types import ActivityWindow
 
 
 # === Success ===
@@ -44,6 +47,31 @@ def test_closed_dataset_rejects_conn_access(query_data_root: Path) -> None:
     ds.close()
     with pytest.raises(RuntimeError, match="closed"):
         _ = ds.conn
+
+def test_selection_bound_to_session(query_data_root: Path) -> None:
+    with ProcurementDataset.open(query_data_root) as ds:
+        sel = ds.select_awards(["A1"])
+        assert sel.session_id == ds.session_id
+        assert ds.award_ids(sel) == frozenset({"A1"})
+
+def test_selection_rejected_across_sessions(query_data_root: Path) -> None:
+    with ProcurementDataset.open(query_data_root) as a:
+        sel = a.select_awards(["A1"])
+        with ProcurementDataset.open(query_data_root) as b:
+            assert a.session_id != b.session_id
+            with pytest.raises(StaleSelectionError, match="different query session"):
+                b.award_ids(sel)
+            with pytest.raises(StaleSelectionError, match="different query session"):
+                b.aggregate_activity(sel, ActivityWindow(date(2025, 1, 1), date(2025, 12, 31)))
+
+def test_selection_rejected_after_close(query_data_root: Path) -> None:
+    ds = ProcurementDataset.open(query_data_root)
+    sel = ds.select_awards(["A1"])
+    ds.close()
+    with pytest.raises(StaleSelectionError, match="closed"):
+        ds.award_ids(sel)
+    with pytest.raises(StaleSelectionError, match="closed"):
+        ds.aggregate_activity(sel, ActivityWindow(date(2025, 1, 1), date(2025, 12, 31)))
 
 
 # === Failures ===

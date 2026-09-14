@@ -39,6 +39,8 @@ On `ProcurementDataset.open(data_root)`:
 
 If `CURRENT` changes on disk while a session is open, *the open session continues using its pinned run-ID.*
 
+**`AwardSelection` is session-scoped.** Each open `ProcurementDataset` has an opaque `session_id`, and every selection it produces carries that ID. Using a selection on another session, or after `close()`, raises `StaleSelectionError`. Temp relations live only on that session's DuckDB connection.
+
 ## 3. Query API
 
 Two explicit operations compose the deterministic runtime:
@@ -54,7 +56,7 @@ selection = dataset.resolve_awards(filters)
 rows = dataset.aggregate_activity(selection, window, group_by=...)
 ```
 
-`AwardSelection` carries `relation_name` + `count`. Aggregation JOINs that relation; IDs are not shipped through Python between stages.
+`AwardSelection` carries `relation_name`, `count`, and `session_id`. Aggregation JOINs that relation; IDs are not shipped through Python between stages.
 
 Semantic retrieval may later build the same `AwardSelection` from a small candidate-ID set via `select_awards`. Fuzzy discovery *stays outside this runtime.*
 

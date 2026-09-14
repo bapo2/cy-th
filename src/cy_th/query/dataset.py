@@ -7,11 +7,13 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
+import secrets
 from types import TracebackType
 from typing import Collection, Literal, Self, overload
 import duckdb
 
 from cy_th.query.aggregate import aggregate_activity
+from cy_th.query.errors import StaleSelectionError
 from cy_th.query.open import OpenDataset, open_published_dataset
 from cy_th.query.resolve import resolve_awards, select_awards, selection_award_ids
 from cy_th.query.types import (
@@ -31,17 +33,30 @@ class ProcurementDataset:
     """Read-only query session over one pinned published Parquet set.
 
     Wraps an `OpenDataset` from open time and adds session lifecycle (`close` / context manager). Resolves `CURRENT` once and keeps the pinned set stable (even if `CURRENT` changes on disk afterward).
+
+    `AwardSelection` values produced by this instance are bound to its `session_id` and rejected after `close()` or when used on another session.
     """
 
     pinned: OpenDataset
     _closed: bool = False
     _selection_seq: int = field(default=0, init=False, repr=False)
+    _session_id: str = field(
+        default_factory=lambda: secrets.token_hex(8),
+        init=False,
+        repr=False,
+    )
 
     @classmethod
     def open(cls, data_root: Path | str | None = None) -> Self:
         """Open the active published dataset under `data_root` (default `.data/`)."""
 
         return cls(pinned=open_published_dataset(data_root))
+
+    @property
+    def session_id(self) -> str:
+        """Opaque ID for this open session (selections must match it)."""
+
+        return self._session_id
 
     @property
     def opened(self) -> OpenDataset:
@@ -77,6 +92,7 @@ class ProcurementDataset:
             self.pinned.conn,
             filters,
             relation_name=self._new_selection_name(),
+            session_id=self._session_id,
         )
 
     def select_awards(self, award_ids: Collection[str]) -> AwardSelection:
@@ -87,12 +103,13 @@ class ProcurementDataset:
             self.pinned.conn,
             award_ids,
             relation_name=self._new_selection_name(),
+            session_id=self._session_id,
         )
 
     def award_ids(self, selection: AwardSelection) -> frozenset[str]:
         """Materialize a selection's Award IDs into Python (tests / debug)."""
 
-        self._ensure_open()
+        self._require_selection(selection)
         return selection_award_ids(self.pinned.conn, selection)
 
     @overload
@@ -125,7 +142,7 @@ class ProcurementDataset:
     ) -> list[AwardActivityRow] | list[RecipientActivityRow]:
         """Aggregate obligations for a resolved/selected Award set inside `window`."""
 
-        self._ensure_open()
+        self._require_selection(selection)
         return aggregate_activity(
             self.pinned.conn,
             selection,
@@ -135,7 +152,7 @@ class ProcurementDataset:
         )
 
     def close(self) -> None:
-        """Close the DuckDB connection."""
+        """Close the DuckDB connection and invalidate this session's selections."""
 
         if not self._closed:
             self.pinned.conn.close()
@@ -159,3 +176,16 @@ class ProcurementDataset:
     def _ensure_open(self) -> None:
         if self._closed:
             raise RuntimeError("ProcurementDataset is closed")
+
+    def _require_selection(self, selection: AwardSelection) -> None:
+        """Reject selections from other sessions or after this session closed."""
+
+        if self._closed:
+            raise StaleSelectionError(detail="query session is closed")
+        if selection.session_id != self._session_id:
+            raise StaleSelectionError(
+                detail=(
+                    "selection belongs to a different query session "
+                    f"(selection={selection.session_id!r}, session={self._session_id!r})"
+                )
+            )

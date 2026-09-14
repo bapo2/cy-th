@@ -74,11 +74,12 @@ class ActivityWindow:
 class AwardSelection:
     """Session-scoped set of qualifying Award IDs backed by a DuckDB temp relation.
 
-    Produced by `resolve_awards` / `select_awards`. Consumed by `aggregate_activity` via JOIN (IDs not round-tripped through Python).
+    Produced by `resolve_awards` / `select_awards` on one `ProcurementDataset` session. Valid only for that open session (`session_id` must match).
     """
 
     relation_name: str
     count: int
+    session_id: str
 
 
 # === Results ===
