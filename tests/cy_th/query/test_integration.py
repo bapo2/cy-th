@@ -15,7 +15,7 @@ from cy_th.query.types import (
     AwardFilters,
     GroupBy,
     LocationFilter,
-    LocationRole,
+    RelationRole,
 )
 from cy_th.schema.enums import ClassificationKind
 from cy_th.schema.keys import classification_id
@@ -31,7 +31,7 @@ def test_resolve_then_aggregate_pop_filter(dataset: ProcurementDataset) -> None:
         selection = dataset.resolve_awards(
             AwardFilters(
                 location=LocationFilter(
-                    role=LocationRole.PLACE_OF_PERFORMANCE,
+                    role=RelationRole.PLACE_OF_PERFORMANCE,
                     state_code="VA",
                 )
             )

@@ -100,9 +100,7 @@ class ColumnSpec:
     type: TypeSpec
     nullable: bool
     description: str = ""
-    """Short semantic note (optional).
-    
-    NOTE: Don't use as a substitute for `record-contracts.md`."""
+    """Short semantic note (optional)."""
 
 Schema = tuple[ColumnSpec, ...]
 """Ordered column contract for a canonical record."""

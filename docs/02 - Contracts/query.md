@@ -2,7 +2,7 @@
 
 This document defines **how the procurement query runtime reads the published canonical dataset.**
 
-Record semantics stay in [Record Contracts](record-contracts.md) and physical layout in [Materialization Contract](materialization.md). Executable code lives under `src/cy_th/query/`.
+Record semantics stay in [Record Contracts](records.md) and physical layout in [Materialization Contract](materialization.md). Executable code lives under `src/cy_th/query/`.
 
 ## 1. Contract Statement
 
@@ -58,7 +58,7 @@ rows = dataset.aggregate_activity(selection, window, group_by=...)
 
 `AwardSelection` carries `relation_name`, `count`, and `session_id`. Aggregation JOINs that relation; IDs are not shipped through Python between stages.
 
-Semantic retrieval builds the same `AwardSelection` from hit IDs via `select_awards`. Fuzzy discovery lives in the [Semantic Search Contract](semantic.md).
+Semantic retrieval builds the same `AwardSelection` from hit IDs via `select_awards`. Fuzzy discovery lives in the [Semantic Search Contract](semantic.md). Relationship expansion from a selection lives in the [Relationship Traversal Contract](traversal.md).
 
 ## 4. Filter Semantics
 
@@ -76,6 +76,7 @@ Award and reference predicates select Awards. **Each active filter is AND'd.**
 | `funding_agency_ids`      | `award_record.funding_agency_id`      |
 | `funding_sub_agency_ids`  | `award_record.funding_sub_agency_id`  |
 | `funding_office_ids`      | `award_record.funding_office_id`      |
+| `parent_idv_ids`          | `award_record.parent_idv_id`          |
 | `naics_ids`               | `award_record.naics_id`               |
 | `psc_ids`                 | `award_record.psc_id`                 |
 | `location`                | role-specific location FK (see below) |
@@ -89,12 +90,12 @@ We'll opt to use canonical IDs everywhere (`toptier:097`, `NAICS:541330`, `locat
 
 ### 4.2 Location Filter
 
-**`LocationFilter.role` is required and explicit:**
+**`LocationFilter.role` is a required `RelationRole`:**
 
-- `recipient` → `award_record.recipient_location_id`
-- `place_of_performance` → `award_record.place_of_performance_id`
+- `RelationRole.RECIPIENT` → `award_record.recipient_location_id`
+- `RelationRole.PLACE_OF_PERFORMANCE` → `award_record.place_of_performance_id`
 
-We don't silently OR recipient and place-of-performance roles.
+Other `RelationRole` values are rejected. We don't silently OR recipient and place-of-performance roles.
 
 **Match either:**
 
@@ -175,5 +176,8 @@ src/cy_th/query/
 ├── open.py       # CURRENT resolution + view registration
 ├── resolve.py    # resolve_awards
 ├── aggregate.py  # aggregate_activity
+├── traverse.py   # traverse_relationships
 └── dataset.py    # ProcurementDataset
 ```
+
+See [Traversal Contract](traversal.md) for more details on the related relationship traversal contract + API.

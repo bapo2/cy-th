@@ -34,7 +34,7 @@ The local dataset is a **compact procurement relationship index** backed by tran
 | Download projection | `projection.py`  | `TRANSACTION_DOWNLOAD_COLUMNS`                |
 | Snapshot helper     | `snapshot.py`    | Topology + money rules                        |
 
-The ingestion manifest remains a control-plane object (see [Ingestion Contract](ingestion-contract.md)). Its schema lands with the ingest path.
+The ingestion manifest remains a control-plane object (see [Ingestion Contract](ingestion.md)). Its schema lands with the ingest path.
 
 ## 3. Logical Types
 

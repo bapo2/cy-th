@@ -10,7 +10,7 @@ import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
 from cy_th.materialize.references import TABLE_LOCATIONS
-from cy_th.query.types import AwardFilters, AwardSelection, LocationFilter, LocationRole
+from cy_th.query.types import AwardFilters, AwardSelection, LocationFilter, RelationRole
 from cy_th.schema.db_types import quote_ident
 from cy_th.schema.keys import normalize_city_name
 
@@ -27,13 +27,14 @@ _ID_LIST_FILTERS: Final[tuple[tuple[str, str], ...]] = (
     ("funding_agency_ids", "funding_agency_id"),
     ("funding_sub_agency_ids", "funding_sub_agency_id"),
     ("funding_office_ids", "funding_office_id"),
+    ("parent_idv_ids", "parent_idv_id"),
     ("naics_ids", "naics_id"),
     ("psc_ids", "psc_id"),
 )
 
-_LOCATION_FK: Final[dict[LocationRole, str]] = {
-    LocationRole.RECIPIENT: "recipient_location_id",
-    LocationRole.PLACE_OF_PERFORMANCE: "place_of_performance_id",
+_LOCATION_FK: Final[dict[RelationRole, str]] = {
+    RelationRole.RECIPIENT: "recipient_location_id",
+    RelationRole.PLACE_OF_PERFORMANCE: "place_of_performance_id",
 }
 
 
@@ -151,6 +152,11 @@ def _location_clause(
     #### Returns:
         `(sql_fragment, params, empty)` where `empty` = zero matches
     """
+
+    if location.role not in _LOCATION_FK:
+        raise ValueError(
+            f"LocationFilter.role must be RelationRole.RECIPIENT or RelationRole.PLACE_OF_PERFORMANCE, got {location.role!r}"
+        )
 
     fk = _LOCATION_FK[location.role]
     a_fk = f"a.{quote_ident(fk)}"
