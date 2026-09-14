@@ -5,10 +5,10 @@
 # === Imports ===
 
 from __future__ import annotations
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
-from typing import Sequence
+from pathlib import Path
+from typing import Iterator, Sequence
 import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
@@ -21,6 +21,12 @@ from cy_th.materialize.transactions import TABLE_TRANSACTIONS
 from cy_th.schema.db_types import quote_ident
 from cy_th.semantic.paths import TEXT_BUDGET, document_id_for_award
 from cy_th.semantic.types import SemanticDocument
+
+
+# === Constants ===
+
+_DEFAULT_FETCH_SIZE: int = 256
+_DEFAULT_INSERT_BATCH: int = 512
 
 
 # === Source Row ===
@@ -159,26 +165,30 @@ def build_award_source(
     recipient_name: str | None,
     awarding_agency_name: str | None,
     awarding_sub_agency_name: str | None,
-    transaction_rows: Sequence[tuple[date | None, str, str | None]],
+    transaction_rows: Sequence[tuple[date | None, str, str | None]] = (),
+    transaction_descriptions: Sequence[str | None] | None = None,
 ) -> AwardSemanticSource:
     """Normalize fields and dedupe transaction descriptions (newest-first).
 
-    `transaction_rows` entries are `(action_date, transaction_id, description)` in any order (they're sorted here).
+    Prefer `transaction_descriptions` when already ordered newest-first (projection path). Otherwise pass `transaction_rows` as `(action_date, transaction_id, description)` in any order.
     """
 
-    # `action_date DESC` (nulls last), then `transaction_id ASC`
-    ordered = sorted(
-        transaction_rows,
-        key=lambda row: (
-            row[0] is None,
-            -(row[0].toordinal()) if row[0] is not None else 0,
-            row[1],
-        ),
-    )
+    if transaction_descriptions is not None:
+        ordered_raw: list[str | None] = list(transaction_descriptions)
+    else:
+        ordered = sorted(
+            transaction_rows,
+            key=lambda row: (
+                row[0] is None,
+                -(row[0].toordinal()) if row[0] is not None else 0,
+                row[1],
+            ),
+        )
+        ordered_raw = [raw for _action_date, _txn_id, raw in ordered]
 
     seen: set[str] = set()
     txn_texts: list[str] = []
-    for _action_date, _txn_id, raw in ordered:
+    for raw in ordered_raw:
         readable = normalize_readable(raw)
         if readable is None:
             continue
@@ -206,49 +216,99 @@ def build_award_source(
 
 # === Projection ===
 
-def project_semantic_documents(
+def iter_semantic_documents(
     conn: duckdb.DuckDBPyConnection,
     *,
     text_budget: int = TEXT_BUDGET,
-) -> list[SemanticDocument]:
-    """Project indexable Award semantic documents from registered canonical views.
+    fetch_size: int = _DEFAULT_FETCH_SIZE,
+) -> Iterator[SemanticDocument]:
+    """Yield indexable Award documents in `award_id ASC` order w/out materializing all rows.
 
-    Result is sorted by `award_id ASC`. Awards without work-bearing text are omitted.
+    Streams DuckDB result chunks via `fetchmany`. Awards without work-bearing text are skipped.
     """
 
-    txns_by_award = _load_transaction_rows(conn)
-    docs: list[SemanticDocument] = []
+    if fetch_size <= 0:
+        raise ValueError("fetch_size must be > 0")
 
-    for row in _load_award_rows(conn):
-        (
-            award_id,
-            base_description,
-            psc_code,
-            psc_description,
-            naics_code,
-            naics_description,
-            recipient_name,
-            awarding_agency_name,
-            awarding_sub_agency_name,
-        ) = row
-        source = build_award_source(
-            award_id=award_id,
-            base_description=base_description,
-            psc_code=psc_code,
-            psc_description=psc_description,
-            naics_code=naics_code,
-            naics_description=naics_description,
-            recipient_name=recipient_name,
-            awarding_agency_name=awarding_agency_name,
-            awarding_sub_agency_name=awarding_sub_agency_name,
-            transaction_rows=txns_by_award.get(award_id, ()),
+    result = conn.execute(_award_projection_sql())
+    while True:
+        chunk = result.fetchmany(fetch_size)
+        if not chunk:
+            break
+        for row in chunk:
+            doc = _document_from_projection_row(row, text_budget=text_budget)
+            if doc is not None:
+                yield doc
+
+def write_documents_parquet(
+    conn: duckdb.DuckDBPyConnection,
+    out_path: Path,
+    *,
+    text_budget: int = TEXT_BUDGET,
+    fetch_size: int = _DEFAULT_FETCH_SIZE,
+    insert_batch: int = _DEFAULT_INSERT_BATCH,
+) -> int:
+    """Stream assembled documents to `out_path` (Parquet); returns document count.
+
+    We use a sibling file-backed DuckDB table for inserts so Python never holds the full set, then `COPY` to Parquet.
+    """
+
+    if insert_batch <= 0:
+        raise ValueError("insert_batch must be > 0")
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.exists():
+        out_path.unlink()
+
+    staging_db = out_path.with_name(out_path.stem + ".build.duckdb")
+    if staging_db.exists():
+        staging_db.unlink()
+
+    writer = duckdb.connect(str(staging_db))
+    try:
+        writer.execute(
+            """
+            CREATE TABLE documents (
+              row_index INTEGER NOT NULL,
+              award_id VARCHAR NOT NULL,
+              document_id VARCHAR NOT NULL,
+              text VARCHAR NOT NULL
+            )
+            """
         )
-        doc = assemble_document(source, text_budget=text_budget)
-        if doc is not None:
-            docs.append(doc)
+        batch: list[tuple[int, str, str, str]] = []
+        row_index = 0
+        for doc in iter_semantic_documents(
+            conn, text_budget=text_budget, fetch_size=fetch_size
+        ):
+            batch.append((row_index, doc.award_id, doc.document_id, doc.text))
+            row_index += 1
+            if len(batch) >= insert_batch:
+                writer.executemany(
+                    "INSERT INTO documents VALUES (?, ?, ?, ?)",
+                    batch,
+                )
+                batch.clear()
+        if batch:
+            writer.executemany(
+                "INSERT INTO documents VALUES (?, ?, ?, ?)",
+                batch,
+            )
+            batch.clear()
 
-    docs.sort(key=lambda d: d.award_id)
-    return docs
+        if row_index == 0:
+            return 0
+
+        writer.execute(
+            "COPY documents TO ? (FORMAT PARQUET)",
+            [str(out_path.resolve())],
+        )
+        return row_index
+    finally:
+        writer.close()
+        staging_db.unlink(missing_ok=True)
+        for suffix in (".wal", ".tmp"):
+            Path(str(staging_db) + suffix).unlink(missing_ok=True)
 
 
 # === Helpers ===
@@ -308,27 +368,15 @@ def _append_transaction_section(
         return current, True  # Drop header-only block (budget may still allow labels)
     return text, cont
 
-def _load_award_rows(
-    conn: duckdb.DuckDBPyConnection,
-) -> list[
-    tuple[
-        str,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-    ]
-]:
+def _award_projection_sql() -> str:
+    """One row per Award with txn descriptions already newest-first as a list."""
+
     a = quote_ident(TABLE_AWARDS)
     r = quote_ident(TABLE_RECIPIENTS)
     ag = quote_ident(TABLE_AGENCIES)
     cl = quote_ident(TABLE_CLASSIFICATIONS)
-    rows = conn.execute(
-        f"""
+    t = quote_ident(TABLE_TRANSACTIONS)
+    return f"""
         SELECT
           a.{quote_ident('award_id')},
           a.{quote_ident('base_description')},
@@ -338,7 +386,13 @@ def _load_award_rows(
           naics.{quote_ident('description')},
           rec.{quote_ident('name')},
           aw.{quote_ident('name')},
-          aws.{quote_ident('name')}
+          aws.{quote_ident('name')},
+          list(
+            t.{quote_ident('transaction_description')}
+            ORDER BY
+              t.{quote_ident('action_date')} DESC NULLS LAST,
+              t.{quote_ident('transaction_id')} ASC
+          ) AS txn_descriptions
         FROM {a} AS a
         LEFT JOIN {r} AS rec
           ON rec.{quote_ident('uei')} = a.{quote_ident('recipient_id')}
@@ -350,48 +404,47 @@ def _load_award_rows(
           ON psc.{quote_ident('classification_id')} = a.{quote_ident('psc_id')}
         LEFT JOIN {cl} AS naics
           ON naics.{quote_ident('classification_id')} = a.{quote_ident('naics_id')}
+        LEFT JOIN {t} AS t
+          ON t.{quote_ident('award_id')} = a.{quote_ident('award_id')}
+        GROUP BY
+          a.{quote_ident('award_id')},
+          a.{quote_ident('base_description')},
+          psc.{quote_ident('code')},
+          psc.{quote_ident('description')},
+          naics.{quote_ident('code')},
+          naics.{quote_ident('description')},
+          rec.{quote_ident('name')},
+          aw.{quote_ident('name')},
+          aws.{quote_ident('name')}
         ORDER BY a.{quote_ident('award_id')} ASC
         """
-    ).fetchall()
-    return [
-        (
-            str(row[0]),
-            _as_optional_str(row[1]),
-            _as_optional_str(row[2]),
-            _as_optional_str(row[3]),
-            _as_optional_str(row[4]),
-            _as_optional_str(row[5]),
-            _as_optional_str(row[6]),
-            _as_optional_str(row[7]),
-            _as_optional_str(row[8]),
-        )
-        for row in rows
-    ]
 
-def _load_transaction_rows(
-    conn: duckdb.DuckDBPyConnection,
-) -> dict[str, list[tuple[date | None, str, str | None]]]:
-    t = quote_ident(TABLE_TRANSACTIONS)
-    rows = conn.execute(
-        f"""
-        SELECT
-          {quote_ident('award_id')},
-          {quote_ident('action_date')},
-          {quote_ident('transaction_id')},
-          {quote_ident('transaction_description')}
-        FROM {t}
-        """
-    ).fetchall()
-    out: dict[str, list[tuple[date | None, str, str | None]]] = defaultdict(list)
-    for award_id, action_date, transaction_id, description in rows:
-        out[str(award_id)].append(
-            (
-                action_date if isinstance(action_date, date) else None,
-                str(transaction_id),
-                _as_optional_str(description),
-            )
-        )
-    return out
+def _document_from_projection_row(
+    row: tuple[object, ...],
+    *,
+    text_budget: int,
+) -> SemanticDocument | None:
+    txn_raw = row[9]
+    if txn_raw is None:
+        txn_descriptions: list[str | None] = []
+    elif isinstance(txn_raw, (list, tuple)):
+        txn_descriptions = [_as_optional_str(item) for item in txn_raw]
+    else:
+        txn_descriptions = [_as_optional_str(txn_raw)]
+
+    source = build_award_source(
+        award_id=str(row[0]),
+        base_description=_as_optional_str(row[1]),
+        psc_code=_as_optional_str(row[2]),
+        psc_description=_as_optional_str(row[3]),
+        naics_code=_as_optional_str(row[4]),
+        naics_description=_as_optional_str(row[5]),
+        recipient_name=_as_optional_str(row[6]),
+        awarding_agency_name=_as_optional_str(row[7]),
+        awarding_sub_agency_name=_as_optional_str(row[8]),
+        transaction_descriptions=txn_descriptions,
+    )
+    return assemble_document(source, text_budget=text_budget)
 
 def _as_optional_str(value: object) -> str | None:
     if value is None:

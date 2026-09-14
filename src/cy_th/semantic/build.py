@@ -14,7 +14,7 @@ import numpy.typing as npt
 
 from cy_th.query.dataset import ProcurementDataset
 from cy_th.schema.db_types import quote_ident
-from cy_th.semantic.documents import project_semantic_documents
+from cy_th.semantic.documents import write_documents_parquet
 from cy_th.semantic.embed import Embedder
 from cy_th.semantic.errors import (
     IncompatibleSemanticIndexError,
@@ -37,7 +37,7 @@ from cy_th.semantic.paths import (
     semantic_dir,
     semantic_staging_dir,
 )
-from cy_th.semantic.types import SemanticBuildResult, SemanticDocument, SemanticMetadata
+from cy_th.semantic.types import SemanticBuildResult, SemanticMetadata
 
 
 # === Public API ===
@@ -51,6 +51,8 @@ def build_semantic_index(
     text_budget: int = TEXT_BUDGET,
 ) -> SemanticBuildResult:
     """Project documents, embed, validate in staging, then publish under `derived/<run-id>/semantic/`.
+
+    Streams Award documents to Parquet, then fills `embeddings.npy` via memmap in batches so the full document list + the full embedding matrix isn't held in memory.
 
     #### Raises:
         - `SemanticIndexExistsError` when published index exists and `force` is `False`
@@ -69,20 +71,27 @@ def build_semantic_index(
     if published.exists() and not force:
         raise SemanticIndexExistsError(run_id=run_id, semantic_path=published)
 
-    documents = project_semantic_documents(dataset.conn, text_budget=text_budget)
-    if not documents:
-        raise SemanticError(
-            f"no indexable Awards for run {run_id}; can't publish an empty semantic index"
-        )
-
     if staging.exists():
         shutil.rmtree(staging)
     staging.mkdir(parents=True, exist_ok=False)
 
     try:
-        matrix = _embed_documents(documents, embedder, batch_size=batch_size)
-        _write_documents_parquet(staging, documents)
-        _write_embeddings(staging, matrix)
+        document_count = write_documents_parquet(
+            dataset.conn,
+            documents_path(staging),
+            text_budget=text_budget,
+        )
+        if document_count == 0:
+            raise SemanticError(
+                f"no indexable Awards for run {run_id}; can't publish an empty semantic index"
+            )
+
+        _embed_documents_memmap(
+            staging,
+            embedder,
+            document_count=document_count,
+            batch_size=batch_size,
+        )
         meta = SemanticMetadata(
             run_id=run_id,
             model_id=embedder.model_id,
@@ -90,7 +99,7 @@ def build_semantic_index(
             embedding_dim=embedder.embedding_dim,
             normalize=True,
             metric=METRIC_COSINE,
-            document_count=len(documents),
+            document_count=document_count,
             text_budget=text_budget,
             sentence_transformers_version=embedder.sentence_transformers_version,
             built_at=datetime.now(timezone.utc),
@@ -110,7 +119,7 @@ def build_semantic_index(
         run_id=run_id,
         data_root=data_root,
         semantic_path=published,
-        document_count=len(documents),
+        document_count=document_count,
         model_id=embedder.model_id,
         forced=force,
     )
@@ -257,63 +266,56 @@ def _close_memmap(array: npt.NDArray[np.generic]) -> None:
         if nested is not None:
             nested.close()
 
-def _embed_documents(
-    documents: list[SemanticDocument],
+def _embed_documents_memmap(
+    semantic_root: Path,
     embedder: Embedder,
     *,
+    document_count: int,
     batch_size: int,
-) -> npt.NDArray[np.float32]:
-    """Embed `documents` as shape `(len(documents), embedding_dim)` float32 rows."""
-    
+) -> None:
+    """Embed documents from Parquet into a memmapped `embeddings.npy` in batches."""
+
     dim = embedder.embedding_dim
-    matrix = np.empty((len(documents), dim), dtype=np.float32)
-    for start in range(0, len(documents), batch_size):
-        batch = documents[start : start + batch_size]
-        vectors = embedder.embed([doc.text for doc in batch])
-        if vectors.shape != (len(batch), dim):
-            raise RuntimeError(
-                f"embedder returned shape {vectors.shape}, expected {(len(batch), dim)}"
-            )
-        if vectors.dtype != np.float32:
-            vectors = np.asarray(vectors, dtype=np.float32)
-        matrix[start : start + len(batch)] = vectors
-    return np.ascontiguousarray(matrix)
-
-def _write_documents_parquet(
-    semantic_root: Path,
-    documents: list[SemanticDocument],
-) -> None:
-    rows = [
-        (i, doc.award_id, doc.document_id, doc.text)
-        for i, doc in enumerate(documents)
-    ]
-    out = documents_path(semantic_root)
-    conn = duckdb.connect()
+    emb_path = embeddings_path(semantic_root)
+    docs_path = documents_path(semantic_root)
+    matrix = np.lib.format.open_memmap(
+        emb_path,
+        mode="w+",
+        dtype=np.float32,
+        shape=(document_count, dim),
+    )
+    lookup = duckdb.connect()
     try:
-        conn.execute(
-            """
-            CREATE TABLE documents (
-              row_index INTEGER NOT NULL,
-              award_id VARCHAR NOT NULL,
-              document_id VARCHAR NOT NULL,
-              text VARCHAR NOT NULL
-            )
-            """
+        parquet_sql = docs_path.resolve().as_posix().replace("'", "''")
+        lookup.execute(
+            f"CREATE VIEW documents AS SELECT * FROM read_parquet('{parquet_sql}')"
         )
-        conn.executemany(
-            "INSERT INTO documents VALUES (?, ?, ?, ?)",
-            rows,
-        )
-        conn.execute(
-            "COPY documents TO ? (FORMAT PARQUET)",
-            [str(out)],
-        )
+        for start in range(0, document_count, batch_size):
+            stop = min(start + batch_size, document_count)
+            rows = lookup.execute(
+                f"""
+                SELECT {quote_ident('text')}
+                FROM documents
+                WHERE {quote_ident('row_index')} >= ?
+                  AND {quote_ident('row_index')} < ?
+                ORDER BY {quote_ident('row_index')} ASC
+                """,
+                [start, stop],
+            ).fetchall()
+            if len(rows) != stop - start:
+                raise RuntimeError(
+                    f"expected {stop - start} document texts for rows [{start}, {stop}), "
+                    f"got {len(rows)}"
+                )
+            vectors = embedder.embed([str(row[0]) for row in rows])
+            if vectors.shape != (len(rows), dim):
+                raise RuntimeError(
+                    f"embedder returned shape {vectors.shape}, expected {(len(rows), dim)}"
+                )
+            if vectors.dtype != np.float32:
+                vectors = np.asarray(vectors, dtype=np.float32)
+            matrix[start:stop] = vectors
+        matrix.flush()
     finally:
-        conn.close()
-
-def _write_embeddings(
-    semantic_root: Path,
-    matrix: npt.NDArray[np.float32],
-) -> None:
-    path = embeddings_path(semantic_root)
-    np.save(path, np.ascontiguousarray(matrix, dtype=np.float32))
+        lookup.close()
+        _close_memmap(matrix)  # Needed so we don't get in-use errors
