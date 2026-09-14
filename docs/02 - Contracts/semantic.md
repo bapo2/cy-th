@@ -2,7 +2,7 @@
 
 This document defines **how Cy-TH builds and queries a derived semantic index over the published canonical dataset.**
 
-Canonical Parquet is authoritative ([Materialization](materialization.md), [Record Contracts](records.md)). Structured filtering and aggregation stay in the [Query Contract](query.md).
+Canonical Parquet is authoritative ([Materialization](materialization.md), [Record Contracts](records.md)). Structured filtering and aggregation stay in the [Query Contract](query.md). Model-facing composition over search + query + traversal lives in the [Evidence Tooling Contract](evidence.md).
 
 Code lives under `src/cy_th/semantic/`.
 
