@@ -58,6 +58,48 @@ class SubmittedAnswer:
             "dropped_citation_ids": list(self.dropped_citation_ids),
         }
 
+@dataclass(frozen=True, slots=True)
+class ToolTraceEntry:
+    """One procurement or `submit_answer` dispatch recorded on `AgentAnswer`."""
+
+    round: int
+    name: str
+    arguments: Mapping[str, Any]
+    ok: bool
+    observation: Mapping[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "round": self.round,
+            "name": self.name,
+            "arguments": dict(self.arguments),
+            "ok": self.ok,
+            "observation": dict(self.observation),
+        }
+
+@dataclass(frozen=True, slots=True)
+class AgentAnswer:
+    """Structured result of one bounded agent run."""
+
+    text: str
+    citations: tuple[AwardCard, ...]
+    dropped_citation_ids: tuple[str, ...]
+    termination_reason: TerminationReason
+    rounds: int
+    tool_calls: int
+    tool_trace: tuple[ToolTraceEntry, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "citations": [c.to_dict() for c in self.citations],
+            "dropped_citation_ids": list(self.dropped_citation_ids),
+            "termination_reason": self.termination_reason.value,
+            "rounds": self.rounds,
+            "tool_calls": self.tool_calls,
+            "tool_trace": [e.to_dict() for e in self.tool_trace],
+        }
+
 
 # === Public API ===
 

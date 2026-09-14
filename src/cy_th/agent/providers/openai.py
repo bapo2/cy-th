@@ -13,8 +13,8 @@
         ```python
         from cy_th.agent.providers.openai import OpenAIModelSession
 
-        with_session = OpenAIModelSession.from_env()
-        # or: OpenAIModelSession(model="gpt-4.1-mini", api_key="...")
+        session = OpenAIModelSession.from_env()
+        # or: OpenAIModelSession(model="gpt-5.6-luna", api_key="...")
         ```
 
 Importing this module does not require the `openai` package; constructing `OpenAIModelSession` does (lazy import).
@@ -47,7 +47,7 @@ from cy_th.agent.types import (
 
 # === Constants ===
 
-DEFAULT_MODEL: str = "gpt-4.1-mini"
+DEFAULT_MODEL: str = "gpt-5.6-luna"
 """Default Responses model when neither ctor `model=` nor `CYTH_MODEL` is set."""
 
 ENV_API_KEY: str = "OPENAI_API_KEY"

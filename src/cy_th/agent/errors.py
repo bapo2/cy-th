@@ -29,6 +29,20 @@ class InvalidModelRequestError(AgentError):
         self.detail = detail
         super().__init__(detail)
 
+class InvalidAgentRequestError(AgentError):
+    """Raised for invalid procurement-agent inputs (question, budgets, …)."""
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+class ClosedAgentError(AgentError):
+    """Raised when using a closed `ProcurementAgent`."""
+
+    def __init__(self, detail: str = "ProcurementAgent is closed") -> None:
+        self.detail = detail
+        super().__init__(detail)
+
 
 # === Optional Provider Deps ===
 
