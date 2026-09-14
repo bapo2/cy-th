@@ -161,6 +161,7 @@ def test_office_skip_empty_location_and_recipient_stubs(tmp_path: Path) -> None:
         city_name="Arlington",
         zip_code="22202",
     )
+    assert pop_id is not None
     loc_count = conn.execute(
         f'SELECT COUNT(*) FROM "{TABLE_LOCATIONS}" WHERE location_id = ?',
         [pop_id],

@@ -7,11 +7,18 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 from typing import Final, Sequence
 import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
-from cy_th.materialize.paths import refs_dir, set_dir, write_current_atomic
+from cy_th.materialize.paths import (
+    refs_dir,
+    set_dir,
+    sets_dir,
+    tmp_set_dir,
+    write_current_atomic,
+)
 from cy_th.materialize.references import (
     TABLE_AGENCIES,
     TABLE_CLASSIFICATIONS,
@@ -223,6 +230,8 @@ def write_parquet_set(
 ) -> Path:
     """Write canonical tables under `sets/<run-id>/` (immutable; must not already exist).
 
+    Assembles files under `.tmp-<run-id>/`, then renames into `sets/<run-id>/` only after every COPY succeeds so a mid-write failure never leaves a partial immutable set.
+
     #### Returns:
         Path to the new set directory
     """
@@ -231,19 +240,31 @@ def write_parquet_set(
     if out.exists():
         raise ValueError(f"set directory already exists (immutable): {out}")
 
-    out.mkdir(parents=True, exist_ok=False)
-    ref_out = refs_dir(out)
-    ref_out.mkdir(parents=True, exist_ok=False)
+    tmp = tmp_set_dir(data_root, run_id)
+    if tmp.exists():
+        shutil.rmtree(tmp)
 
-    _copy_table(conn, TABLE_TRANSACTIONS, out / TRANSACTIONS_PARQUET)
-    _copy_table(conn, TABLE_AWARDS, out / AWARDS_PARQUET)
+    try:
+        tmp.mkdir(parents=True, exist_ok=False)
+        ref_out = refs_dir(tmp)
+        ref_out.mkdir(parents=True, exist_ok=False)
 
-    for table, filename in _REF_PARQUET.items():
-        _copy_table(conn, table, ref_out / filename)
+        _copy_table(conn, TABLE_TRANSACTIONS, tmp / TRANSACTIONS_PARQUET)
+        _copy_table(conn, TABLE_AWARDS, tmp / AWARDS_PARQUET)
 
-    reject_count = _reject_count(conn)
-    if reject_count > 0:
-        _copy_table(conn, TABLE_REJECTS, out / REJECTS_PARQUET)
+        for table, filename in _REF_PARQUET.items():
+            _copy_table(conn, table, ref_out / filename)
+
+        reject_count = _reject_count(conn)
+        if reject_count > 0:
+            _copy_table(conn, TABLE_REJECTS, tmp / REJECTS_PARQUET)
+
+        sets_dir(data_root).mkdir(parents=True, exist_ok=True)
+        tmp.rename(out)
+    except Exception:
+        if tmp.exists():
+            shutil.rmtree(tmp, ignore_errors=True)
+        raise
 
     return out
 

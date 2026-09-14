@@ -95,6 +95,16 @@ def set_dir(root: Path, run_id: str) -> Path:
         raise ValueError(f"invalid run_id: {run_id!r}")
     return sets_dir(root) / run_id
 
+def tmp_set_dir(root: Path, run_id: str) -> Path:
+    """Resolve the staging write dir for a set (`<root>/.tmp-<run-id>/`).
+
+    Used by publish to assemble Parquet files before an atomic rename into `sets/<run-id>/`.
+    """
+
+    if not is_run_id(run_id):
+        raise ValueError(f"invalid run_id: {run_id!r}")
+    return root / f".tmp-{run_id}"
+
 def refs_dir(set_path: Path) -> Path:
     """Resolve the refs directory (`<set>/refs/`)."""
 

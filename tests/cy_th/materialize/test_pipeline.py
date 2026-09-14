@@ -13,7 +13,7 @@ import pytest
 
 from cy_th.materialize.awards import materialize_awards
 from cy_th.materialize.load import connect_staging, load_projected_csvs
-from cy_th.materialize.paths import read_current, set_dir
+from cy_th.materialize.paths import read_current, set_dir, staging_db_path, tmp_set_dir
 from cy_th.materialize.pipeline import materialize
 from cy_th.materialize.publish import (
     REJECTS_PARQUET,
@@ -21,6 +21,7 @@ from cy_th.materialize.publish import (
     check_integrity,
     list_set_files,
     publish_set,
+    write_parquet_set,
 )
 from cy_th.materialize.references import materialize_references
 from cy_th.materialize.transactions import materialize_transactions
@@ -134,6 +135,77 @@ def test_immutable_set_collision(tmp_path: Path) -> None:
     materialize([csv_path], out=tmp_path / "data", run_id=rid)
     with pytest.raises(ValueError, match="already exists"):
         materialize([csv_path], out=tmp_path / "data", run_id=rid)
+
+def test_staging_retained_when_publish_fails(tmp_path: Path) -> None:
+    """Failed runs keep `.staging/<run-id>.duckdb` even without `--keep-staging`."""
+
+    csv_path = write_projected_csv(
+        tmp_path / "one.csv",
+        [
+            blank_projected_row(
+                total_dollars_obligated="1",
+                current_total_value_of_award="1",
+                potential_total_value_of_award="1",
+                recipient_uei="UEI1",
+                awarding_agency_code="097",
+            ),
+        ],
+    )
+    data = tmp_path / "data"
+    rid = "20260914T120100Z_ddddd1"
+    materialize([csv_path], out=data, run_id=rid)
+    assert not staging_db_path(data, rid).exists()
+
+    with pytest.raises(ValueError, match="already exists"):
+        materialize([csv_path], out=data, run_id=rid, keep_staging=False)
+    assert staging_db_path(data, rid).is_file()
+
+def test_parquet_write_failure_leaves_no_partial_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mid-COPY failure must not leave `sets/<run-id>/` or a leftover `.tmp-*`."""
+
+    csv_path = write_projected_csv(
+        tmp_path / "ok.csv",
+        [
+            blank_projected_row(
+                total_dollars_obligated="1",
+                current_total_value_of_award="1",
+                potential_total_value_of_award="1",
+                recipient_uei="UEI1",
+                awarding_agency_code="097",
+            ),
+        ],
+    )
+    rid = "20260914T120200Z_ddddd2"
+    data = tmp_path / "data"
+    conn = connect_staging(tmp_path / "stage.duckdb")
+    load_projected_csvs(conn, [csv_path])
+    validate_and_dedupe(conn)
+    materialize_transactions(conn)
+    materialize_references(conn)
+    materialize_awards(conn)
+
+    calls = {"n": 0}
+
+    import cy_th.materialize.publish as publish_mod
+
+    real = publish_mod._copy_table
+
+    def boom(conn_arg: object, table: str, path: Path) -> None:
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise RuntimeError("injected COPY failure")
+        real(conn_arg, table, path)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(publish_mod, "_copy_table", boom)
+    with pytest.raises(RuntimeError, match="injected COPY failure"):
+        write_parquet_set(conn, data, rid)
+
+    assert not set_dir(data, rid).exists()
+    assert not tmp_set_dir(data, rid).exists()
+    conn.close()
 
 def test_strict_rejects_skip_current_allow_rejects_flips(tmp_path: Path) -> None:
     good = write_projected_csv(

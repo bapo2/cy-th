@@ -64,7 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mat.add_argument(
         "--keep-staging",
         action="store_true",
-        help="retain .staging/<run-id>.duckdb after the run",
+        help="retain .staging/<run-id>.duckdb after a successful run (failed runs keep it)",
     )
     mat.set_defaults(handler=_cmd_materialize)
 

@@ -17,6 +17,7 @@ from cy_th.materialize.paths import (
     resolve_data_root,
     set_dir,
     staging_db_path,
+    tmp_set_dir,
     write_current_atomic,
 )
 
@@ -49,6 +50,7 @@ def test_set_and_staging_paths_validate_run_id(tmp_path: Path) -> None:
     rid = "20260914T021530Z_abcdef"
     assert set_dir(tmp_path, rid) == tmp_path / "sets" / rid
     assert staging_db_path(tmp_path, rid) == tmp_path / ".staging" / f"{rid}.duckdb"
+    assert tmp_set_dir(tmp_path, rid) == tmp_path / f".tmp-{rid}"
     with pytest.raises(ValueError, match="invalid run_id"):
         set_dir(tmp_path, "bad")
 

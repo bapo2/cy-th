@@ -42,9 +42,11 @@ def test_office_id_skips_blank_office_code() -> None:
 def test_location_normalization_is_stable() -> None:
     a = location_id(country_code="USA", state_code="VA", city_name="Charlottesville")
     b = location_id(country_code="USA", state_code="VA", city_name=" charlottesville ")
-    assert a == b
+    assert a is not None and a == b
     assert normalize_city_name(" Charlottesville ") == "charlottesville"
     assert location_granularity(country_code="USA", state_code="VA", city_name="Charlottesville") == "country/state/city"
+    assert location_id() is None
+    assert location_granularity() == "empty"
 
 
 # === Real Rows ===
@@ -99,14 +101,18 @@ def test_location_ids_from_real_recipient_fields(
     prime_txn_sample: list[dict[str, str]],
 ) -> None:
     ids = {
-        location_id(
-            country_code=row.get("recipient_country_code"),
-            state_code=row.get("recipient_state_code"),
-            county_fips=row.get("prime_award_transaction_recipient_county_fips_code"),
-            city_name=row.get("recipient_city_name"),
-            zip_code=row.get("recipient_zip_4_code"),
-        )
+        lid
         for row in prime_txn_sample
+        if (
+            lid := location_id(
+                country_code=row.get("recipient_country_code"),
+                state_code=row.get("recipient_state_code"),
+                county_fips=row.get("prime_award_transaction_recipient_county_fips_code"),
+                city_name=row.get("recipient_city_name"),
+                zip_code=row.get("recipient_zip_4_code"),
+            )
+        )
+        is not None
     }
     assert len(ids) >= 1
     assert all(len(i) == 64 for i in ids)  # SHA-256 hex digests (64 chars)

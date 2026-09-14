@@ -225,7 +225,7 @@ LOCATION_REF_SCHEMA: Schema = (  # NOTE: Congressional district intentionally ex
         nullable=True,
         description="County FIPS component of location identity",
     ),
-    column(  # Strip + casefold this
+    column(  # Strip + lower() this
         "city_name",
         STRING,
         nullable=True,

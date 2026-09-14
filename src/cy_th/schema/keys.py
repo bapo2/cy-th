@@ -91,11 +91,11 @@ def office_id(*, sub_agency_code: str, office_code: str) -> str | None:
 # === Location ===
 
 def normalize_city_name(city: str | None) -> str:
-    """Normalize a city label for location identity (strip + casefold)."""
+    """Normalize a city label for location identity (strip + `lower()`)."""
 
     if city is None:
         return ""
-    return city.strip().casefold()
+    return city.strip().lower()
 
 def location_id(
     *,
@@ -104,7 +104,7 @@ def location_id(
     county_fips: str | None = None,
     city_name: str | None = None,
     zip_code: str | None = None,
-) -> str:
+) -> str | None:
     """Build a local location ID from the strongest available geo-components.
 
     #### Identity Tuple:
@@ -117,6 +117,10 @@ def location_id(
         - `zip`
 
     Congressional district is intentionally excluded. The returned value is a hex SHA-256 digest of the canonical tuple (not a UEI-grade geo-ID).
+
+    #### Returns:
+        - Hex SHA-256 digest of the canonical tuple when any geo component is present
+        - `None` when every geo component is blank
     """
 
     parts = (
@@ -126,6 +130,8 @@ def location_id(
         normalize_city_name(city_name),
         _norm_code(zip_code),
     )
+    if not any(parts):
+        return None
     payload = _LOC_SEP.join(parts).encode("utf-8")
     return sha256(payload).hexdigest()
 

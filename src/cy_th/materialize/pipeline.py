@@ -58,7 +58,7 @@ def materialize(
         - `csv_paths`: One or more projected USASpending CSVs (`N >= 1`)
         - `out`: Data root (default `.data/`)
         - `allow_rejects`: If true, flip `CURRENT` even when rejects exist
-        - `keep_staging`: If true, retain `.staging/<run-id>.duckdb`
+        - `keep_staging`: If true, retain `.staging/<run-id>.duckdb` after success (failed runs keep staging for debug)
         - `run_id`: Optional deterministic run-ID (for tests); else generated
 
     #### Raises:
@@ -78,7 +78,7 @@ def materialize(
     db_path = staging_db_path(data_root, rid)
 
     conn = connect_staging(db_path)
-    staging_kept = keep_staging
+    succeeded = False
     try:
         load = load_projected_csvs(conn, csv_paths)
         validate = validate_and_dedupe(conn)
@@ -91,6 +91,8 @@ def materialize(
             run_id=rid,
             allow_rejects=allow_rejects,
         )
+        succeeded = True
+        staging_kept = keep_staging
         return MaterializeResult(
             run_id=rid,
             data_root=data_root,
@@ -105,7 +107,7 @@ def materialize(
         )
     finally:
         conn.close()
-        if not staging_kept:
+        if succeeded and not keep_staging:  # Delete staging only after successful publish path (unless retained)
             _remove_staging(db_path)
 
 def _remove_staging(db_path: Path) -> None:
