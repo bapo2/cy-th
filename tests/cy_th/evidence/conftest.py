@@ -1,6 +1,6 @@
 # tests/cy_th/evidence/conftest.py
 
-"""Fixtures for evidence-session tests (reuse query materialization)."""
+"""Fixtures for evidence-session tests."""
 
 # === Imports ===
 
@@ -15,12 +15,9 @@ from cy_th.semantic.embed import FakeEmbedder
 
 # === Fixtures ===
 
-# Reuse the shared multi-award published set from query tests
-pytest_plugins = ["tests.cy_th.query.conftest"]
-
 @pytest.fixture
 def evidence_root(query_data_root: Path) -> Path:
-    """Published data root for evidence tests (alias of the query fixture)."""
+    """Published data root for evidence tests (alias of the shared query fixture)."""
 
     return query_data_root
 
