@@ -4,7 +4,7 @@ This document defines the **canonical local records** for Cy-TH and the rules th
 
 Executable definitions live in `src/cy_th/schema/`. This note records the locked semantics so extraction and normalization can proceed without more data-model research.
 
-It *does not select a storage engine, Parquet layout, graph store, or query runtime.*
+Physical materialization (DuckDB → Parquet under `.data/`) is covered by [Materialization Contract](materialization.md).
 
 ## 1. Contract Statement
 
@@ -51,7 +51,7 @@ Column contracts use **storage / logical types,** not library dtypes.
 
 Nullability is orthogonal (each column sets `nullable` explicitly).
 
-Physical binding to DuckDB, Polars, etc. is deferred until the transform code we stand up requires it.
+DuckDB physical bindings for these types live in `db_types.py` (see [Materialization Contract](materialization.md)).
 
 ## 4. Identity and Deduplication
 
@@ -208,10 +208,13 @@ Enrichment cache is *separate from the canonical activity dataset and may be evi
 src/cy_th/schema/
 ├── enums.py         # Snapshot*, AgencyTier, ClassificationKind, HydrationStatus
 ├── types.py         # LogicalType, ColumnSpec, MONEY
+├── db_types.py      # Logical → DuckDB DDL / casts
 ├── keys.py          # Deterministic ID helpers
 ├── references.py    # *Ref schemas
 ├── transaction.py   # TransactionFact
 ├── award.py         # AwardRecord
 ├── projection.py    # Download allowlist + purposes
-└── snapshot.py      # project_award_from_transactions()
+└── snapshot.py      # project_award_from_transactions() (test oracle)
 ```
+
+Materialization pipeline orchestration, reduce logic, validations, Parquet publication, etc. are under `src/cy_th/materialize/` (see [Materialization Contract](materialization.md)).

@@ -4,7 +4,7 @@
 
 These types describe what we store (`string`, `date`, `decimal`, ...).
 
-TODO: Physical binding to-be-determined when we choose an engine for the transform code.
+DuckDB physical binding lives in `db_types.py`.
 """
 
 # === Imports ===

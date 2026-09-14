@@ -1,11 +1,8 @@
 # main.py
 
-"""
-Placeholder main.py entry point. Nothing implemented yet.
-"""
+"""Repo-root entrypoint which delegates to the `cyth` CLI dispatcher."""
 
-def main():
-    raise NotImplementedError("Nothing to see yet!")
+from cy_th.cli import main
 
 if __name__ == "__main__":
     main()

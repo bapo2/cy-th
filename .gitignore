@@ -18,6 +18,9 @@ htmlcov/
 .ruff_cache/
 tests/.cache/
 
+# Local dataset(s)
+.data/
+
 # Smoke tests + local-only stuff
 scripts/
 notes/
