@@ -13,8 +13,8 @@ The query runtime turns the active published Parquet set into a **read-only, det
     → resolve <run-id>
     → .data/sets/<run-id>/
     → read-only DuckDB views (session-pinned)
-    → resolve_awards(filters) → award_id set
-    → aggregate_activity(award_ids, window, group_by) → ranked rows
+    → resolve_awards(filters) → AwardSelection (temp relation)
+    → aggregate_activity(selection, window, group_by) → ranked rows
 ```
 
 **It must:**
@@ -22,6 +22,7 @@ The query runtime turns the active published Parquet set into a **read-only, det
 - Treat canonical Parquet as the source of truth
 - Resolve `CURRENT` once per session and keep the dataset stable for the session lifetime
 - Separate Award/ref filtering from transaction activity filtering
+- Keep resolved Award IDs inside DuckDB (no Python ID round-trip)
 - Compute window obligations from `TransactionFact.federal_action_obligation`
 - Preserve canonical identities needed for provenance and citations
 
@@ -42,12 +43,20 @@ If `CURRENT` changes on disk while a session is open, *the open session continue
 
 Two explicit operations compose the deterministic runtime:
 
-| Step                                                             | Purpose                                                     |
-| :--------------------------------------------------------------- | :---------------------------------------------------------- |
-| `resolve_awards(AwardFilters)`                                   | Select qualifying `award_id`s from projected Award topology |
-| `aggregate_activity(award_ids, ActivityWindow, group_by, limit)` | Sum obligations on qualifying transactions                  |
+| Step                                                             | Purpose                                                                            |
+| :--------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| `resolve_awards(AwardFilters)`                                   | Materialize qualifying `award_id`s into a session temp relation (`AwardSelection`) |
+| `select_awards(award_ids)`                                       | Same abstraction from an explicit ID collection (tests / semantic candidates)      |
+| `aggregate_activity(selection, ActivityWindow, group_by, limit)` | JOIN the selection and sum obligations                                             |
 
-Semantic retrieval may later supply candidate Award IDs to `resolve_awards`; fuzzy discovery *stays outside this runtime.*
+```text
+selection = dataset.resolve_awards(filters)
+rows = dataset.aggregate_activity(selection, window, group_by=...)
+```
+
+`AwardSelection` carries `relation_name` + `count`. Aggregation JOINs that relation; IDs are not shipped through Python between stages.
+
+Semantic retrieval may later build the same `AwardSelection` from a small candidate-ID set via `select_awards`. Fuzzy discovery *stays outside this runtime.*
 
 ## 4. Filter Semantics
 
