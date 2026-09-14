@@ -10,6 +10,7 @@ from typing import Any
 import csv
 import io
 import json
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -52,6 +53,7 @@ class UsaSpendingClient:
         self._timeout = timeout
 
     def count_transactions(self, window: DateWindow) -> int:
+        print(f"USASpending count {window.shard_id}", file=sys.stderr, flush=True)
         payload = self._post_json(ENDPOINT_COUNT, count_request_body(window))
         for key in ("calculated_transaction_count", "calculated_count"):
             value = payload.get(key)
@@ -62,6 +64,7 @@ class UsaSpendingClient:
         raise UsaSpendingApiError(f"count response missing transaction count: {payload!r}")
 
     def download_transactions(self, window: DateWindow, dest_csv: Path) -> DownloadResult:
+        print(f"USASpending download {window.shard_id}", file=sys.stderr, flush=True)
         response = self._post_json(ENDPOINT_TRANSACTIONS, download_request_body(window))
         file_name = response.get("file_name")
         if not isinstance(file_name, str) or not file_name:
@@ -88,14 +91,21 @@ class UsaSpendingClient:
         )
 
     def _wait_for_file(self, status_url: str, file_name: str) -> str:
-        for _ in range(_POLL_ATTEMPTS):
+        for attempt in range(_POLL_ATTEMPTS):
             status = self._get_json(status_url)
             state = str(status.get("status") or "").lower()
             file_url = status.get("file_url") or status.get("url")
             if isinstance(file_url, str) and file_url and state in {"finished", "ready", ""}:
+                print(f"USASpending download ready: {file_name}", file=sys.stderr, flush=True)
                 return file_url
             if state in {"failed", "error"}:
                 raise UsaSpendingApiError(f"download failed for {file_name}: {status}")
+            if attempt % 5 == 0:
+                print(
+                    f"USASpending download {file_name}: {state or 'pending'}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             time.sleep(_POLL_SECONDS)
         raise UsaSpendingApiError(f"timed out waiting for download of {file_name}")
 
