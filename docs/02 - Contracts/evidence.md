@@ -131,7 +131,7 @@ Separate **canonical** Award evidence from **query-specific** retrieval evidence
 **Inputs (exactly one source):**
 
 - `selection: SelectionRef` → first `limit` Awards by `award_id ASC`
-- `award_ids: …` → bounded explicit ids (order preserved or deterministic; reject oversized lists beyond award-card max)
+- `award_ids: …` → bounded explicit ids (first-occurrence dedupe, then order preserved; reject when unique count exceeds award-card max)
 
 *Never expand an entire large selection into model context.*
 

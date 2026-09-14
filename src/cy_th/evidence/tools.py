@@ -213,11 +213,13 @@ def get_award_evidence(
         raise InvalidEvidenceRequestError(str(exc)) from exc
 
     if award_ids is not None:
-        if len(award_ids) > MAX_AWARD_CARD_LIMIT:
+        # Dedupe first so outward cards match registry canonical identity
+        unique_ids = list(dict.fromkeys(award_ids))
+        if len(unique_ids) > MAX_AWARD_CARD_LIMIT:
             raise InvalidEvidenceRequestError(
-                f"award_ids length {len(award_ids)} exceeds max {MAX_AWARD_CARD_LIMIT}"
+                f"award_ids length {len(unique_ids)} exceeds max {MAX_AWARD_CARD_LIMIT}"
             )
-        target_ids = list(award_ids[:bound])
+        target_ids = unique_ids[:bound]
     else:
         assert selection is not None
         internal = session._require_selection(selection)
