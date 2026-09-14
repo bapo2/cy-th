@@ -175,7 +175,10 @@ class SentenceTransformerEmbedder:
             local_files_only=self._local_files_only,
         )
         self._model = model
-        self._dim = int(model.get_sentence_embedding_dimension())  # type: ignore[attr-defined]
+        dim_fn = getattr(model, "get_embedding_dimension", None)
+        if not callable(dim_fn):
+            dim_fn = getattr(model, "get_sentence_embedding_dimension")
+        self._dim = int(dim_fn())  # type: ignore[attr-defined]
         self._revision = _resolve_model_revision(model)
         if self._dim != EMBEDDING_DIM and self._model_id == DEFAULT_MODEL_ID:
             raise RuntimeError(
