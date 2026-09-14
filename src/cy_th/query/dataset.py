@@ -8,10 +8,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Sequence, Self
 import duckdb
 
+from cy_th.query.aggregate import aggregate_activity
 from cy_th.query.open import OpenDataset, open_published_dataset
+from cy_th.query.types import (
+    ActivityWindow,
+    AwardActivityRow,
+    GroupBy,
+    RecipientActivityRow,
+)
 
 
 # === Dataset ===
@@ -57,6 +64,25 @@ class ProcurementDataset:
 
         self._ensure_open()
         return self._opened.conn
+
+    def aggregate_activity(
+        self,
+        award_ids: Sequence[str],
+        window: ActivityWindow,
+        *,
+        group_by: GroupBy = GroupBy.AWARD,
+        limit: int | None = None,
+    ) -> list[AwardActivityRow] | list[RecipientActivityRow]:
+        """Aggregate obligations for `award_ids` inside `window`."""
+
+        self._ensure_open()
+        return aggregate_activity(
+            self._opened.conn,
+            award_ids,
+            window,
+            group_by=group_by,
+            limit=limit,
+        )
 
     def close(self) -> None:
         """Close the DuckDB connection."""
