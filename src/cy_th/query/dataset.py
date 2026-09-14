@@ -16,13 +16,16 @@ from cy_th.query.aggregate import aggregate_activity
 from cy_th.query.errors import StaleSelectionError
 from cy_th.query.open import OpenDataset, open_published_dataset
 from cy_th.query.resolve import resolve_awards, select_awards, selection_award_ids
+from cy_th.query.traverse import traverse_relationships
 from cy_th.query.types import (
     ActivityWindow,
     AwardActivityRow,
     AwardFilters,
     AwardSelection,
+    EntityKind,
     GroupBy,
     RecipientActivityRow,
+    TraversalResult,
 )
 
 
@@ -149,6 +152,20 @@ class ProcurementDataset:
             window,
             group_by=group_by,
             limit=limit,
+        )
+
+    def traverse_relationships(
+        self,
+        selection: AwardSelection,
+        include: Collection[EntityKind] | None = None,
+    ) -> TraversalResult:
+        """Expand `selection` into related canonical entities (one-hop)."""
+
+        self._require_selection(selection)
+        return traverse_relationships(
+            self.pinned.conn,
+            selection,
+            include=include,
         )
 
     def close(self) -> None:
