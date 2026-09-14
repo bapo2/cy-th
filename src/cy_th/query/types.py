@@ -85,6 +85,7 @@ class AwardFilters:
     funding_agency_ids: Sequence[str] | None = None
     funding_sub_agency_ids: Sequence[str] | None = None
     funding_office_ids: Sequence[str] | None = None
+    parent_idv_ids: Sequence[str] | None = None
     naics_ids: Sequence[str] | None = None
     psc_ids: Sequence[str] | None = None
     location: LocationFilter | None = None

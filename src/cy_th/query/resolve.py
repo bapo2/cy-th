@@ -27,6 +27,7 @@ _ID_LIST_FILTERS: Final[tuple[tuple[str, str], ...]] = (
     ("funding_agency_ids", "funding_agency_id"),
     ("funding_sub_agency_ids", "funding_sub_agency_id"),
     ("funding_office_ids", "funding_office_id"),
+    ("parent_idv_ids", "parent_idv_id"),
     ("naics_ids", "naics_id"),
     ("psc_ids", "psc_id"),
 )

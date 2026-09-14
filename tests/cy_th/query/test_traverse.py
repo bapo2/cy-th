@@ -301,3 +301,8 @@ def test_handoff_into_structured_filters(traverse_data_root: Path) -> None:
             )
         )
         assert "A_SHARED" in ds.award_ids(pop_awards)
+
+        idvs = [e.entity_id for e in related.entities if e.kind is EntityKind.IDV]
+        assert idvs
+        idv_awards = ds.resolve_awards(AwardFilters(parent_idv_ids=idvs))
+        assert ds.award_ids(idv_awards) == frozenset({"A_SHARED"})

@@ -107,7 +107,7 @@ Join to the corresponding reference table for labels / geo / classification fiel
 
 ## 5. Labels
 
-| Kind           | `label`                                | Other fields                                                              |
+| Kind           | `label`                                | Other Fields                                                              |
 | :------------- | :------------------------------------- | :------------------------------------------------------------------------ |
 | Recipient      | recipient name                         | -                                                                         |
 | Agency/Office  | agency/office name                     | `agency_tier` on agencies                                                 |
@@ -146,18 +146,17 @@ We'll avoid manufacturing composite strings such as `"{code}: {description}"` fo
 
 Returned `entity_id` values are intended for existing `AwardFilters` / `LocationFilter` fields:
 
-| Related entity                  | Filter field(s)                                                                                |
-| :------------------------------ | :--------------------------------------------------------------------------------------------- |
-| Recipient                       | `recipient_ids`                                                                                |
-| Agency + `AWARDING` + `TOPTIER` | `awarding_agency_ids`                                                                          |
-| Agency + `AWARDING` + `SUBTIER` | `awarding_sub_agency_ids`                                                                      |
-| Agency + `FUNDING` + `TOPTIER`  | `funding_agency_ids`                                                                           |
-| Agency + `FUNDING` + `SUBTIER`  | `funding_sub_agency_ids`                                                                       |
-| Office + `AWARDING` / `FUNDING` | `awarding_office_ids` / `funding_office_ids`                                                   |
-| Location + role                 | `LocationFilter(role=..., location_ids=[...])`                                                 |
-| Classification `NAICS` / `PSC`  | `naics_ids` / `psc_ids`                                                                        |
-| IDV                             | No dedicated Award filter yet; still returned as canonical identity for callers / later work |
-
+| Related Entity                  | Filter Field(s)                                |
+| :------------------------------ | :--------------------------------------------- |
+| Recipient                       | `recipient_ids`                                |
+| Agency + `AWARDING` + `TOPTIER` | `awarding_agency_ids`                          |
+| Agency + `AWARDING` + `SUBTIER` | `awarding_sub_agency_ids`                      |
+| Agency + `FUNDING` + `TOPTIER`  | `funding_agency_ids`                           |
+| Agency + `FUNDING` + `SUBTIER`  | `funding_sub_agency_ids`                       |
+| Office + `AWARDING` / `FUNDING` | `awarding_office_ids` / `funding_office_ids`   |
+| Location + role                 | `LocationFilter(role=..., location_ids=[...])` |
+| Classification `NAICS` / `PSC`  | `naics_ids` / `psc_ids`                        |
+| IDV                             | `parent_idv_ids`                               |
 
 Multi-hop questions (e.g. "other agencies that awarded to these recipients") are **caller composition:** traverse → filter IDs → `resolve_awards` → traverse again. Traversal itself stays one-hop.
 

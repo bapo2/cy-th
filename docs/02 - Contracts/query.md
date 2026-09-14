@@ -76,6 +76,7 @@ Award and reference predicates select Awards. **Each active filter is AND'd.**
 | `funding_agency_ids`      | `award_record.funding_agency_id`      |
 | `funding_sub_agency_ids`  | `award_record.funding_sub_agency_id`  |
 | `funding_office_ids`      | `award_record.funding_office_id`      |
+| `parent_idv_ids`          | `award_record.parent_idv_id`          |
 | `naics_ids`               | `award_record.naics_id`               |
 | `psc_ids`                 | `award_record.psc_id`                 |
 | `location`                | role-specific location FK (see below) |
