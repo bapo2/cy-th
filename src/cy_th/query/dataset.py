@@ -13,9 +13,11 @@ import duckdb
 
 from cy_th.query.aggregate import aggregate_activity
 from cy_th.query.open import OpenDataset, open_published_dataset
+from cy_th.query.resolve import resolve_awards
 from cy_th.query.types import (
     ActivityWindow,
     AwardActivityRow,
+    AwardFilters,
     GroupBy,
     RecipientActivityRow,
 )
@@ -64,6 +66,12 @@ class ProcurementDataset:
 
         self._ensure_open()
         return self._opened.conn
+
+    def resolve_awards(self, filters: AwardFilters | None = None) -> frozenset[str]:
+        """Resolve qualifying Award IDs from projected topology filters."""
+
+        self._ensure_open()
+        return resolve_awards(self._opened.conn, filters)
 
     def aggregate_activity(
         self,
