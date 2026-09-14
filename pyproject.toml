@@ -12,6 +12,7 @@ dependencies = [
 [project.optional-dependencies]
 semantic = [
     "sentence-transformers>=3.0",
+    "torch>=2.0",
 ]
 openai = [
     "openai>=1.66",
@@ -36,6 +37,16 @@ packages = ["src/cy_th"]
 [tool.uv]
 default-groups = ["dev"]
 
+# CUDA 13.0 wheels (without this, it'll often resolve to CPU-only torch)
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
