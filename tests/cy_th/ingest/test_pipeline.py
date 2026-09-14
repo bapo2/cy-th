@@ -170,3 +170,37 @@ def test_incomplete_shard_is_redownloaded(tmp_path: Path) -> None:
     )
     assert second.downloaded == 1
     assert client.download_calls == [window.shard_id, window.shard_id]
+
+def test_download_job_failure_bisects_shard(tmp_path: Path) -> None:
+    full = DateWindow(start=date(2025, 1, 10), end=date(2025, 1, 11))
+    left = DateWindow(start=date(2025, 1, 10), end=date(2025, 1, 10))
+    right = DateWindow(start=date(2025, 1, 11), end=date(2025, 1, 11))
+    client = FakeDownloadClient(
+        counts={
+            full.shard_id: 2,
+            left.shard_id: 1,
+            right.shard_id: 1,
+        },
+        csv_rows={
+            left.shard_id: [_row("T1", "A1", "2025-01-10")],
+            right.shard_id: [_row("T2", "A2", "2025-01-11")],
+        },
+        fail_download_ids={full.shard_id},
+    )
+    result = ingest(
+        from_date=full.start,
+        to_date=full.end,
+        out=tmp_path,
+        materialize_set=False,
+        client=client,
+    )
+    assert result.downloaded == 2
+    assert [s.window.shard_id for s in result.shards] == [left.shard_id, right.shard_id]
+    assert shard_is_complete(
+        shard_csv_path(result.job_dir, left),
+        shard_manifest_path(result.job_dir, left),
+    )
+    assert shard_is_complete(
+        shard_csv_path(result.job_dir, right),
+        shard_manifest_path(result.job_dir, right),
+    )

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import csv
 
-from cy_th.ingest.errors import TransientUsaSpendingError
+from cy_th.ingest.errors import DownloadJobFailedError, TransientUsaSpendingError
 from cy_th.ingest.types import DateWindow, DownloadResult
 from cy_th.schema.projection import TRANSACTION_DOWNLOAD_COLUMNS
 
@@ -27,6 +27,8 @@ class FakeDownloadClient:
     download_calls: list[str] = field(default_factory=list)
     timeout_when_days_gt: int | None = None
     """If set, raise `TransientUsaSpendingError` when the window spans more than this many days."""
+    fail_download_ids: set[str] = field(default_factory=set)
+    """Shard ids that raise `DownloadJobFailedError` once (removed after fail)."""
 
     def count_transactions(self, window: DateWindow) -> int:
         self.count_calls.append(window.shard_id)
@@ -42,6 +44,12 @@ class FakeDownloadClient:
 
     def download_transactions(self, window: DateWindow, dest_csv: Path) -> DownloadResult:
         self.download_calls.append(window.shard_id)
+        if window.shard_id in self.fail_download_ids:
+            self.fail_download_ids.discard(window.shard_id)
+            raise DownloadJobFailedError(
+                f"fake download failed for {window.shard_id}",
+                file_name=f"fake_{window.shard_id}.zip",
+            )
         rows = self.csv_rows.get(window.shard_id)
         if rows is None:
             if window.shard_id in self.counts:

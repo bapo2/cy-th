@@ -69,10 +69,18 @@ def plan_shards(
 
 # === Helpers ===
 
-def _enqueue_halves(pending: deque[DateWindow], current: DateWindow) -> None:
+def split_window(current: DateWindow) -> tuple[DateWindow, DateWindow]:
+    """Split a multi-day window into two contiguous halves (raises if single day)."""
+
+    if current.start == current.end:
+        raise ValueError(f"cannot split single-day window {current.shard_id}")
     span_days = (current.end - current.start).days
     mid = current.start + timedelta(days=span_days // 2)
     left = DateWindow(start=current.start, end=mid)
     right = DateWindow(start=mid + timedelta(days=1), end=current.end)
+    return left, right
+
+def _enqueue_halves(pending: deque[DateWindow], current: DateWindow) -> None:
+    left, right = split_window(current)
     pending.appendleft(right)
     pending.appendleft(left)

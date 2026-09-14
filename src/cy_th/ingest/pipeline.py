@@ -5,11 +5,13 @@
 # === Imports ===
 
 from __future__ import annotations
+from collections import deque
 from datetime import date
 from pathlib import Path
+import sys
 
 from cy_th.ingest.client import UsaSpendingClient
-from cy_th.ingest.errors import InvalidIngestRequestError
+from cy_th.ingest.errors import DownloadJobFailedError, InvalidIngestRequestError
 from cy_th.ingest.manifest import (
     load_planned_shards,
     new_job_document,
@@ -27,7 +29,7 @@ from cy_th.ingest.paths import (
     shard_manifest_path,
     shards_dir,
 )
-from cy_th.ingest.planner import plan_shards
+from cy_th.ingest.planner import plan_shards, split_window
 from cy_th.ingest.types import (
     DateWindow,
     DownloadClient,
@@ -53,7 +55,7 @@ def ingest(
 ) -> IngestResult:
     """Plan / resume / download shards under `out/ingest/<job-id>/`, then materialize.
 
-    Completed shards (CSV + matching checksum manifest) are skipped. Compact mode discards the download zip after extract (handled in the client).
+    Completed shards (CSV + matching checksum manifest) are skipped. Compact mode discards the download zip after extract (handled in the client). Persistent USASpending download-job failures on multi-day shards bisect that shard and continue.
     """
 
     if to_date < from_date:
@@ -80,26 +82,51 @@ def ingest(
     downloaded = 0
     skipped = 0
     csv_paths: list[Path] = []
+    final_shards: list[PlannedShard] = []
+    pending: deque[PlannedShard] = deque(shards)
     _set_job_status(job_file, job_doc, JobStatus.DOWNLOADING)
 
-    for planned in shards:
+    while pending:
+        planned = pending.popleft()
         csv_path = shard_csv_path(job_path, planned.window)
         man_path = shard_manifest_path(job_path, planned.window)
         if shard_is_complete(csv_path, man_path):
             skipped += 1
             csv_paths.append(csv_path)
+            final_shards.append(planned)
             continue
 
         _clear_incomplete(csv_path, man_path)
-        result = resolved_client.download_transactions(planned.window, csv_path)
+        try:
+            result = resolved_client.download_transactions(planned.window, csv_path)
+        except DownloadJobFailedError:
+            if planned.window.start == planned.window.end:
+                raise
+            left, right = split_window(planned.window)
+            print(
+                f"USASpending download failed for {planned.window.shard_id}; "
+                f"bisecting into {left.shard_id} + {right.shard_id}",
+                file=sys.stderr,
+                flush=True,
+            )
+            replacements = _plan_halves(left, right, resolved_client)
+            for shard in reversed(replacements):
+                pending.appendleft(shard)
+            _persist_plan(job_file, job_doc, (*final_shards, *pending))
+            continue
+
         write_json_atomic(
             man_path,
             shard_manifest(planned.window, csv_path=csv_path, download=result),
         )
         downloaded += 1
         csv_paths.append(csv_path)
+        final_shards.append(planned)
+        _persist_plan(job_file, job_doc, (*final_shards, *pending))
 
+    shards_tuple = tuple(final_shards)
     csv_tuple = tuple(csv_paths)
+    _persist_plan(job_file, job_doc, shards_tuple)
     _set_job_status(job_file, job_doc, JobStatus.ACQUIRED)
 
     run_id: str | None = None
@@ -125,7 +152,7 @@ def ingest(
         job_dir=job_path,
         from_date=from_date,
         to_date=to_date,
-        shards=shards,
+        shards=shards_tuple,
         csv_paths=csv_tuple,
         downloaded=downloaded,
         skipped_complete=skipped,
@@ -158,6 +185,24 @@ def _load_or_plan(
     )
     write_json_atomic(job_file, doc)
     return planned, doc
+
+def _persist_plan(
+    job_file: Path,
+    doc: dict[str, object],
+    shards: tuple[PlannedShard, ...] | list[PlannedShard],
+) -> None:
+    doc["shards"] = [shard.to_dict() for shard in shards]
+    doc["updated_at"] = utc_now_iso()
+    write_json_atomic(job_file, doc)
+
+def _plan_halves(
+    left: DateWindow,
+    right: DateWindow,
+    client: DownloadClient,
+) -> tuple[PlannedShard, ...]:
+    """Re-plan each half (may further bisect on count timeout / over-cap)."""
+
+    return (*plan_shards(left, client), *plan_shards(right, client))
 
 def _set_job_status(
     job_file: Path,

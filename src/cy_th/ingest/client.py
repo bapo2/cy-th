@@ -16,7 +16,11 @@ import urllib.error
 import urllib.request
 import zipfile
 
-from cy_th.ingest.errors import TransientUsaSpendingError, UsaSpendingApiError
+from cy_th.ingest.errors import (
+    DownloadJobFailedError,
+    TransientUsaSpendingError,
+    UsaSpendingApiError,
+)
 from cy_th.ingest.filters import (
     API_BASE,
     ENDPOINT_COUNT,
@@ -34,6 +38,7 @@ USER_AGENT: str = "Mozilla/5.0 (compatible; cy-th-ingest/0.1)"
 _POLL_SECONDS: float = 2.0
 _POLL_ATTEMPTS: int = 300
 _HTTP_RETRIES: int = 5
+_DOWNLOAD_JOB_RETRIES: int = 3
 _TRANSIENT_HTTP: frozenset[int] = frozenset({502, 503, 504})
 
 
@@ -66,6 +71,26 @@ class UsaSpendingClient:
 
     def download_transactions(self, window: DateWindow, dest_csv: Path) -> DownloadResult:
         print(f"USASpending download {window.shard_id}", file=sys.stderr, flush=True)
+        last_error: BaseException | None = None
+        for attempt in range(_DOWNLOAD_JOB_RETRIES):
+            try:
+                return self._download_transactions_once(window, dest_csv)
+            except DownloadJobFailedError as exc:
+                last_error = exc
+                if attempt + 1 >= _DOWNLOAD_JOB_RETRIES:
+                    break
+                delay = 3.0 * (attempt + 1)
+                print(
+                    f"USASpending download job failed for {window.shard_id} "
+                    f"(retry {attempt + 1}/{_DOWNLOAD_JOB_RETRIES - 1} in {delay:.0f}s)",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(delay)
+        assert last_error is not None
+        raise last_error
+
+    def _download_transactions_once(self, window: DateWindow, dest_csv: Path) -> DownloadResult:
         response = self._post_json(ENDPOINT_TRANSACTIONS, download_request_body(window))
         file_name = response.get("file_name")
         if not isinstance(file_name, str) or not file_name:
@@ -100,7 +125,10 @@ class UsaSpendingClient:
                 print(f"USASpending download ready: {file_name}", file=sys.stderr, flush=True)
                 return file_url
             if state in {"failed", "error"}:
-                raise UsaSpendingApiError(f"download failed for {file_name}: {status}")
+                raise DownloadJobFailedError(
+                    f"download failed for {file_name}: {status}",
+                    file_name=file_name,
+                )
             if attempt % 5 == 0:
                 print(
                     f"USASpending download {file_name}: {state or 'pending'}",

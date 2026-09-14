@@ -53,3 +53,10 @@ class TransientUsaSpendingError(UsaSpendingApiError):
     def __init__(self, detail: str, *, status_code: int | None = None) -> None:
         self.status_code = status_code
         super().__init__(detail)
+
+class DownloadJobFailedError(UsaSpendingApiError):
+    """Raised when USASpending marks an async download job as failed."""
+
+    def __init__(self, detail: str, *, file_name: str | None = None) -> None:
+        self.file_name = file_name
+        super().__init__(detail)
