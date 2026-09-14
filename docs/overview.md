@@ -77,4 +77,4 @@ The local data layer will remain compact, while wider USASpending detail will be
 4. **Compactness:** Retain useful local structure without mirroring the full USASpending dataset
 5. **Extensibility:** Keep data acquisition, reasoning, storage, and model-provider choices loosely coupled
 
-Executable contracts for the deterministic services live under `docs/02 - Contracts/` (query, semantic search, relationship traversal, materialization, records).
+Executable contracts for the deterministic services live under `docs/02 - Contracts/` (query, semantic search, relationship traversal, evidence tooling, materialization, records).

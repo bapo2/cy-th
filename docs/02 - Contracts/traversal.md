@@ -2,7 +2,7 @@
 
 This document defines **how Cy-TH expands a session-valid Award selection into related canonical entities** (recipients, agencies, offices, IDVs, locations, classifications).
 
-Canonical Parquet is authoritative ([Materialization](materialization.md), [Record Contracts](records.md)). Award filtering and aggregation stay in the [Query Contract](query.md). Fuzzy discovery stays in the [Semantic Search Contract](semantic.md).
+Canonical Parquet is authoritative ([Materialization](materialization.md), [Record Contracts](records.md)). Award filtering and aggregation stay in the [Query Contract](query.md). Fuzzy discovery stays in the [Semantic Search Contract](semantic.md). Model-facing composition lives in the [Evidence Tooling Contract](evidence.md).
 
 ## 1. Contract Statement
 
