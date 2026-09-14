@@ -1,6 +1,9 @@
 # cy_th/agent/tools.py
 
-"""Available tool definitions for the procurement agent (`ToolSpec` catalog)."""
+"""Available tool definitions for the procurement agent (`ToolSpec` catalog).
+
+Execution against `EvidenceSession` lives in `cy_th.agent.dispatch`.
+"""
 
 # === Imports ===
 
