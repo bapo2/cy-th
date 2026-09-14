@@ -7,11 +7,18 @@
 from __future__ import annotations
 from typing import Protocol, Sequence, runtime_checkable
 import hashlib
+import re
 import numpy as np
 import numpy.typing as npt
 
-from cy_th.semantic.errors import MissingEmbeddingDepsError
+from cy_th.semantic.errors import MissingEmbeddingDepsError, SemanticError
 from cy_th.semantic.paths import DEFAULT_MODEL_ID, EMBEDDING_DIM
+
+
+# === Constants ===
+
+_VECTOR_NORM_EPS: float = 1e-8
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$", re.IGNORECASE)
 
 
 # === Protocol ===
@@ -33,7 +40,10 @@ class Embedder(Protocol):
     def sentence_transformers_version(self) -> str | None: ...
 
     def embed(self, texts: Sequence[str]) -> npt.NDArray[np.float32]:
-        """Embed `texts` as shape `(len(texts), embedding_dim)` normalized rows."""
+        """Embed `texts` as shape `(len(texts), embedding_dim)` float32 rows.
+
+        Callers that persist vectors (build) must re-normalize and validate (don't assume Embedder output is trusted).
+        """
         ...
 
 
@@ -47,6 +57,38 @@ def l2_normalize_rows(matrix: npt.NDArray[np.floating]) -> npt.NDArray[np.float3
         raise ValueError(f"expected 2-D embedding matrix, got shape {out.shape}")
     norms = np.linalg.norm(out, axis=1, keepdims=True)
     np.divide(out, norms, out=out, where=norms > 0)
+    return out
+
+def prepare_document_embeddings(
+    vectors: npt.NDArray[np.floating],
+    *,
+    expected_rows: int,
+    expected_dim: int,
+) -> npt.NDArray[np.float32]:
+    """L2-normalize and validate one embedding batch (instead of blindly trusting Embedder output).
+
+    Raises `SemanticError` on shape mismatch, non-finite values, or zero vectors.
+    """
+
+    if expected_rows < 0 or expected_dim <= 0:
+        raise ValueError("expected_rows must be >= 0 and expected_dim must be > 0")
+    raw = np.asarray(vectors)
+    if raw.shape != (expected_rows, expected_dim):
+        raise SemanticError(
+            f"embedding batch shape {raw.shape} != ({expected_rows}, {expected_dim})"
+        )
+    if expected_rows == 0:
+        return np.zeros((0, expected_dim), dtype=np.float32)
+    if not np.isfinite(raw).all():
+        raise SemanticError("embedding batch contains non-finite values")
+
+    out = l2_normalize_rows(raw)
+    norms = np.linalg.norm(out, axis=1)
+    bad = np.flatnonzero(norms < _VECTOR_NORM_EPS)
+    if bad.size:
+        raise SemanticError(
+            f"embedding batch contains zero vector(s) at local row(s) {bad.tolist()}"
+        )
     return out
 
 def require_sentence_transformers() -> tuple[object, str]:
@@ -155,7 +197,7 @@ class SentenceTransformerEmbedder:
             return np.zeros((0, self.embedding_dim), dtype=np.float32)
         vectors = model.encode(  # type: ignore[attr-defined]
             list(texts),
-            normalize_embeddings=True,
+            normalize_embeddings=False,
             convert_to_numpy=True,
             show_progress_bar=False,
         )
@@ -164,7 +206,8 @@ class SentenceTransformerEmbedder:
             raise RuntimeError(
                 f"unexpected embedding shape {out.shape}; expected (*, {self.embedding_dim})"
             )
-        return l2_normalize_rows(out)
+        # Build re-normalizes/validates; return raw float32 rows
+        return np.ascontiguousarray(out, dtype=np.float32)
 
     def _ensure_model(self) -> object:
         if self._model is not None:
@@ -178,32 +221,45 @@ class SentenceTransformerEmbedder:
         dim_fn = getattr(model, "get_embedding_dimension", None)
         if not callable(dim_fn):
             dim_fn = getattr(model, "get_sentence_embedding_dimension")
-        self._dim = int(dim_fn())  # type: ignore[attr-defined]
-        self._revision = _resolve_model_revision(model)
+        self._dim = int(dim_fn())  # type: ignore[operator]
+        self._revision = _resolve_model_revision(model, model_id=self._model_id)
         if self._dim != EMBEDDING_DIM and self._model_id == DEFAULT_MODEL_ID:
             raise RuntimeError(
                 f"locked model {self._model_id!r} returned dim={self._dim}, expected {EMBEDDING_DIM}"
             )
         return model
 
-def _resolve_model_revision(model: object) -> str | None:
-    """Best-effort resolved revision / commit hash from a loaded ST model."""
+def _resolve_model_revision(model: object, *, model_id: str) -> str | None:
+    """Resolved revision hash for `model`, or `None` when unavailable.
+
+    Ignores model id/path strings such as `config._name_or_path`. Prefer explicit revision attribute, then Hub `model_info(...).sha`.
+    """
 
     for attr in ("revision", "_revision"):
         value = getattr(model, attr, None)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+        if _is_revision_hash(value):
+            return str(value).strip()
 
-    inner = getattr(model, "_first_module", None)
-    if callable(inner):
-        try:
-            module = inner()
-        except Exception:
-            module = None
-        if module is not None:
-            auto = getattr(module, "auto_model", None)
-            config = getattr(auto, "config", None) if auto is not None else None
-            name = getattr(config, "_name_or_path", None) if config is not None else None
-            if isinstance(name, str) and name.strip():
-                return name.strip()
+    return _hub_model_sha(model_id)
+
+def _is_revision_hash(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return _GIT_SHA_RE.fullmatch(value.strip()) is not None
+
+def _hub_model_sha(model_id: str) -> str | None:
+    """Best-effort commit SHA from HuggingFace Hub metadata."""
+
+    try:
+        from importlib import import_module
+
+        hub = import_module("huggingface_hub")
+        model_info = getattr(hub, "model_info")
+        info = model_info(model_id)
+    except Exception:
+        return None
+
+    sha = getattr(info, "sha", None)
+    if _is_revision_hash(sha):
+        return str(sha).strip()
     return None

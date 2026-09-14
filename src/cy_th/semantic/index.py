@@ -102,6 +102,16 @@ class SemanticIndex:
                     f"embedder dim {embedder.embedding_dim} != index {meta.embedding_dim}"
                 ),
             )
+        if meta.model_revision is not None:
+            embedder_revision = embedder.model_revision
+            if embedder_revision != meta.model_revision:
+                raise IncompatibleSemanticIndexError(
+                    run_id=run_id,
+                    detail=(
+                        f"embedder model_revision {embedder_revision!r} != "
+                        f"index {meta.model_revision!r}"
+                    ),
+                )
 
         matrix = np.load(embeddings_path(semantic_path), mmap_mode="r")
         lookup = duckdb.connect()

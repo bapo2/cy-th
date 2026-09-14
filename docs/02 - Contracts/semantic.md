@@ -80,7 +80,7 @@ Query embeddings **must use the same model and configuration as the indexed docu
 
 - `run_id`
 - `model_id`
-- `model_revision` (resolved revision/hash when available, else null)
+- `model_revision` (resolved HF/git hash when available, else null)
 - `embedding_dim`
 - `normalize`
 - `metric` (`cosine`)
@@ -179,7 +179,7 @@ with ProcurementDataset.open(".data") as ds:
 **Open:**
 
 - Bind to dataset `run_id` and `session_id`
-- Reject missing or incompatible published artifacts (run-ID / dim / normalize / metric / shape mismatch)
+- Reject missing or incompatible published artifacts (run-ID / dim / normalize / metric / shape mismatch; `model_revision` must match when index recorded one)
 - Own memmap / file handles; support `close()` + context manager
 - Closing the dataset invalidates the index; subsequent search fails clearly
 

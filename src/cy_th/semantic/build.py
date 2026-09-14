@@ -15,7 +15,7 @@ import numpy.typing as npt
 from cy_th.query.dataset import ProcurementDataset
 from cy_th.schema.db_types import quote_ident
 from cy_th.semantic.documents import write_documents_parquet
-from cy_th.semantic.embed import Embedder
+from cy_th.semantic.embed import Embedder, prepare_document_embeddings
 from cy_th.semantic.errors import (
     IncompatibleSemanticIndexError,
     MissingSemanticIndexError,
@@ -332,13 +332,11 @@ def _embed_documents_memmap(
                     f"got {len(rows)}"
                 )
             vectors = embedder.embed([str(row[0]) for row in rows])
-            if vectors.shape != (len(rows), dim):
-                raise RuntimeError(
-                    f"embedder returned shape {vectors.shape}, expected {(len(rows), dim)}"
-                )
-            if vectors.dtype != np.float32:
-                vectors = np.asarray(vectors, dtype=np.float32)
-            matrix[start:stop] = vectors
+            matrix[start:stop] = prepare_document_embeddings(
+                vectors,
+                expected_rows=len(rows),
+                expected_dim=dim,
+            )
         matrix.flush()
     finally:
         lookup.close()
