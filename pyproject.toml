@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-clear-test-cache = "cy_th.dev:main_clear_test_cache"
+cyth = "cy_th.cli:main"
 
 [dependency-groups]
 dev = [
@@ -44,7 +44,7 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = ["cy_th"]
-omit = ["*/cy_th/dev.py"]
+omit = ["*/cy_th/cli.py"]
 
 [tool.coverage.report]
 show_missing = true
