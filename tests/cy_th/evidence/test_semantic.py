@@ -100,12 +100,45 @@ def test_search_rejects_non_positive_top_k(
     evidence_root_with_semantic: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from cy_th.evidence.errors import InvalidEvidenceRequestError
+
     monkeypatch.setattr(
         "cy_th.semantic.embed.SentenceTransformerEmbedder",
         FakeEmbedder,
     )
-    from cy_th.evidence.errors import InvalidEvidenceRequestError
-
     with EvidenceSession.open(evidence_root_with_semantic) as ev:
         with pytest.raises(InvalidEvidenceRequestError, match="top_k"):
             ev.search_contract_work("x", top_k=0)
+
+def test_search_wraps_generic_semantic_error(
+    evidence_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cy_th.semantic.errors import SemanticError
+
+    monkeypatch.setattr(
+        "cy_th.semantic.embed.SentenceTransformerEmbedder",
+        FakeEmbedder,
+    )
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise SemanticError("unexpected semantic failure")
+
+    monkeypatch.setattr("cy_th.semantic.index.SemanticIndex.open", boom)
+    with EvidenceSession.open(evidence_root) as ev:
+        with pytest.raises(SemanticUnavailableError, match="unexpected semantic"):
+            ev.search_contract_work("anything", top_k=1)
+
+def test_close_releases_opened_semantic(
+    evidence_root_with_semantic: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "cy_th.semantic.embed.SentenceTransformerEmbedder",
+        FakeEmbedder,
+    )
+    ev = EvidenceSession.open(evidence_root_with_semantic)
+    ev.search_contract_work("engineering", top_k=2)
+    assert ev._semantic is not None
+    ev.close()
+    assert ev._semantic is None

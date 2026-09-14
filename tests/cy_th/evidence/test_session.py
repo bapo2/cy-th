@@ -40,6 +40,10 @@ def test_open_close_and_context_manager(evidence_root: Path) -> None:
     with pytest.raises(ClosedEvidenceSessionError):
         session.get_award_evidence(award_ids=["A2"])
 
+def test_data_root_property(evidence_root: Path) -> None:
+    with EvidenceSession.open(evidence_root) as ev:
+        assert ev.data_root == evidence_root
+
 def test_close_is_idempotent(evidence_root: Path) -> None:
     ev = EvidenceSession.open(evidence_root)
     ev.close()
