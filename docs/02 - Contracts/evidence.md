@@ -6,7 +6,7 @@ Canonical Parquet is authoritative ([Materialization](materialization.md), [Reco
 
 ## 1. Contract Statement
 
-**The evidence tool layer is the stable boundary a future procurement agent calls:**
+**The evidence tool layer is the stable boundary the [procurement agent](agent.md) calls:**
 
 ```text
 EvidenceSession
@@ -35,7 +35,7 @@ EvidenceSession
 - Duplicate query / semantic / traversal logic
 - Expose storage-engine or DuckDB session internals to the model
 - Ship unbounded Award ID lists through tool results as the default composition mechanism
-- Implement the agent loop, LLM provider tool schemas, or answer synthesis
+- Implement the agent loop, LLM provider adapters, or answer synthesis (see [Procurement Agent Contract](agent.md))
 
 ## 2. Session Lifecycle
 
@@ -88,8 +88,6 @@ Every tool call:
 **Primary:** Pass `SelectionRef` between tools
 
 Bounded raw `award_ids` are allowed where naturally useful (especially `get_award_evidence`). Explicit ID sets for selection minting remain available via `resolve_awards(AwardFilters(award_ids=…))`.
-
-**Usage examples and module layout:** 🚧 TBD after implementation settles 🚧
 
 ## 4. Opaque Selection Refs
 
@@ -174,4 +172,12 @@ Bounds apply to **model-visible payloads** only.
 
 ## 11. Code Map
 
-🚧 TBD after implementation. 🚧
+```text
+src/cy_th/evidence/
+├── types.py      # SelectionRef, AwardCard, retained evidence, *View DTOs, bounds
+├── errors.py     # closed session / invalid ref / invalid request / semantic unavailable
+├── tools.py      # dual-purpose ops + AwardCard hydration SQL
+└── session.py    # EvidenceSession open/close, registry, lazy semantic
+```
+
+**Public entry:** `EvidenceSession` (methods delegate to `tools.py`)

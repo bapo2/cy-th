@@ -1,6 +1,7 @@
 # Python-specific caches/artifacts
 __pycache__/
 .venv/
+uv.lock
 *.py[cod]
 *$py.class
 
