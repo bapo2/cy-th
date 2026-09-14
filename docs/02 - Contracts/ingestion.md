@@ -467,3 +467,45 @@ Local Query     Lazy Enrichment
 The canonical local dataset is therefore a **compact procurement relationship index backed by transaction facts.**
 
 USASpending remains the authoritative source for detail *that does not need to be carried in the local working set.*
+
+## 19. CLI
+
+```text
+uv run cyth ingest --from YYYY-MM-DD --to YYYY-MM-DD [--out .data] [--no-materialize]
+```
+
+`--from` / `--to` are inclusive `action_date` bounds. Default publishes a Parquet set and flips `CURRENT` via existing materialize. `--no-materialize` stops after shards + manifests.
+
+### 19.1 On-disk layout
+
+```text
+<data-root>/
+├── ingest/
+│   └── <from>_<to>_<12-hex>/
+│       ├── job.json
+│       └── shards/
+│           ├── <start>_<end>.csv
+│           └── <start>_<end>.json
+├── sets/<run-id>/
+└── CURRENT
+```
+
+Job-ID is deterministic from population + interval + projection + ingest version (reruns resume the same job). Per-shard JSON is the ingestion manifest (checksum, filters, row count). Completed shards are skipped.
+
+### 19.2 Partitioning
+
+`POST /download/count/` then bisect the date window until each shard is ≤ 500k rows (USASpending download cap). A single day still over the cap fails clearly.
+
+### 19.3 Code map
+
+```text
+src/cy_th/ingest/
+├── pipeline.py    # plan / resume / download / optional materialize
+├── planner.py     # date bisection
+├── client.py      # live USASpending HTTP
+├── fake.py        # offline DownloadClient
+├── manifest.py    # job.json + per-shard manifests
+├── filters.py     # locked DoD prime population
+├── paths.py       # ingest/<job-id>/shards
+└── types.py
+```
