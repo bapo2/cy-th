@@ -8,9 +8,12 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Sequence
 
+from cy_th.ingest.errors import IngestError, InvalidIngestRequestError
+from cy_th.ingest.pipeline import ingest
 from cy_th.materialize.pipeline import materialize
 from cy_th.materialize.publish import IntegrityError
 from cy_th.query.dataset import ProcurementDataset
@@ -117,12 +120,46 @@ def _build_parser() -> argparse.ArgumentParser:
     clear.set_defaults(handler=_cmd_clear_test_cache)
 
     # Ingest subcommand
-    # TODO: Not yet implemented, for now this is just reserved
-    ingest = sub.add_parser(
+    ingest_cmd = sub.add_parser(
         "ingest",
-        help="not yet implemented!",
+        help="acquire USASpending prime transactions and materialize CURRENT",
     )
-    ingest.set_defaults(handler=_cmd_ingest)
+    ingest_cmd.add_argument(
+        "--from",
+        dest="from_date",
+        required=True,
+        metavar="YYYY-MM-DD",
+        help="inclusive action_date start",
+    )
+    ingest_cmd.add_argument(
+        "--to",
+        dest="to_date",
+        required=True,
+        metavar="YYYY-MM-DD",
+        help="inclusive action_date end",
+    )
+    ingest_cmd.add_argument(
+        "--out",
+        default=".data",
+        metavar="DIR",
+        help="data root for ingest jobs + sets/CURRENT (default: .data/)",
+    )
+    ingest_cmd.add_argument(
+        "--no-materialize",
+        action="store_true",
+        help="download shards + manifests only (do not publish a Parquet set)",
+    )
+    ingest_cmd.add_argument(
+        "--allow-rejects",
+        action="store_true",
+        help="when materializing, publish CURRENT even if reject-rows exist",
+    )
+    ingest_cmd.add_argument(
+        "--keep-staging",
+        action="store_true",
+        help="when materializing, retain .staging/<run-id>.duckdb",
+    )
+    ingest_cmd.set_defaults(handler=_cmd_ingest)
 
     return parser
 
@@ -230,12 +267,55 @@ def _cmd_clear_test_cache(_args: argparse.Namespace) -> int:
     print(f"removed {cache_dir}")
     return 0
 
-def _cmd_ingest(_args: argparse.Namespace) -> int:
-    print(
-        "error: `cyth ingest` is not implemented yet!",
-        file=sys.stderr,
-    )
-    return 1
+def _cmd_ingest(args: argparse.Namespace) -> int:
+    """Acquire shards for `--from`/`--to`, then materialize unless `--no-materialize`."""
+
+    try:
+        from_date = date.fromisoformat(args.from_date)
+        to_date = date.fromisoformat(args.to_date)
+    except ValueError as exc:
+        print(f"error: dates must be YYYY-MM-DD ({exc})", file=sys.stderr)
+        return 1
+
+    try:
+        result = ingest(
+            from_date=from_date,
+            to_date=to_date,
+            out=args.out,
+            materialize_set=not bool(args.no_materialize),
+            allow_rejects=bool(args.allow_rejects),
+            keep_staging=bool(args.keep_staging),
+        )
+    except InvalidIngestRequestError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except IngestError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except IntegrityError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print("ingest complete")
+    print(f"  job_id:      {result.job_id}")
+    print(f"  out:         {result.data_root}")
+    print(f"  job:         {result.job_dir}")
+    print(f"  window:      {result.from_date.isoformat()} .. {result.to_date.isoformat()}")
+    print(f"  shards:      {len(result.shards)}")
+    print(f"  downloaded:  {result.downloaded}")
+    print(f"  skipped:     {result.skipped_complete}")
+    print(f"  status:      {result.status.value}")
+    if result.run_id is not None:
+        print(f"  CURRENT:     {result.run_id}")
+        return 0
+    if args.no_materialize:
+        print("  CURRENT:     (skipped; --no-materialize)")
+        return 0
+    print("  CURRENT:     (not published)")
+    return 2
 
 
 # === Paths ===

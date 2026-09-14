@@ -467,3 +467,97 @@ Local Query     Lazy Enrichment
 The canonical local dataset is therefore a **compact procurement relationship index backed by transaction facts.**
 
 USASpending remains the authoritative source for detail *that does not need to be carried in the local working set.*
+
+## 19. CLI
+
+```text
+uv run cyth ingest --from YYYY-MM-DD --to YYYY-MM-DD [--out .data] [--no-materialize]
+```
+
+`--from` / `--to` are inclusive `action_date` bounds. Default publishes a Parquet set and flips `CURRENT` via existing materialize. `--no-materialize` stops after shards + manifests.
+
+### 19.1 On-disk layout
+
+```text
+<data-root>/
+├── ingest/
+│   └── <from>_<to>_<12-hex>/
+│       ├── job.json
+│       └── shards/
+│           ├── <start>_<end>.csv
+│           └── <start>_<end>.json
+├── sets/<run-id>/
+└── CURRENT
+```
+
+Job-ID is deterministic from population + interval + projection + ingest version (reruns resume the same job). Per-shard JSON is the ingestion manifest (checksum, filters, row count). Completed shards are skipped.
+
+### 19.2 Partitioning
+
+`POST /download/count/` then bisect the date window until each shard is ≤ 500k rows (USASpending download cap). A single day still over the cap fails clearly.
+
+### 19.3 Code map
+
+```text
+src/cy_th/ingest/
+├── pipeline.py    # plan / resume / download / optional materialize
+├── planner.py     # date bisection
+├── client.py      # live USASpending HTTP
+├── fake.py        # offline DownloadClient
+├── manifest.py    # job.json + per-shard manifests
+├── filters.py     # locked DoD prime population
+├── paths.py       # ingest/<job-id>/shards
+└── types.py
+```
+
+## 20. Lazy Enrichment
+
+Enrichment fetches USASpending award detail on demand and caches it under the data root. **It does not rewrite `CURRENT` / Parquet.**
+
+```text
+uv run python -c "from cy_th.enrichment.service import enrich_award; ..."
+```
+
+**Library entrypoints:** `enrich_award(dataset, award_id)`, `enrich_idv(dataset, idv_id)` in `cy_th.enrichment.service`
+
+### 20.1 On-disk layout
+
+```text
+<data-root>/
+├── enrichment/
+│   ├── awards/<urlsafe-award-id>.json
+│   └── idvs/<urlsafe-idv-id>.json
+├── ingest/...
+├── sets/<run-id>/
+└── CURRENT
+```
+
+Each cache record preserves `resource_type`, `source_id`, `endpoint`, `retrieved_at`, `selected` (parsed fields), and full `payload`. Evict by deleting the file; the core dataset must not depend on cache retention.
+
+### 20.2 Overlay rules
+
+- Endpoint: `GET /api/v2/awards/{generated_unique_award_id}/` (works for Awards and IDVs)
+- Always expose `date_signed` on the Award overlay when present on detail
+- Apply detail money **only when local `snapshot_status` is `requires_enrichment`** → overlay may set `snapshot_source=award_detail`
+- IDV overlay reports `hydration_status=hydrated` with type code/label from detail; local stub rows stay `stub`
+
+### 20.3 Provenance chain
+
+```text
+local fact → source Award / Transaction id
+           → ingest job + shard manifest (acquisition)
+           → enrichment cache record (detail endpoint + retrieval time) when overlay fields are used
+```
+
+### 20.4 Code map
+
+```text
+src/cy_th/enrichment/
+├── service.py     # enrich_award / enrich_idv / evict
+├── reconcile.py   # selected fields + money gate
+├── cache.py       # JSON cache IO
+├── client.py      # live award-detail HTTP
+├── fake.py        # offline DetailClient
+├── paths.py
+└── types.py
+```
