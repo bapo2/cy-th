@@ -2,7 +2,7 @@
 
 This document defines **how the procurement query runtime reads the published canonical dataset.**
 
-Record semantics stay in [Record Contracts](record-contracts.md) and physical layout in [Materialization Contract](materialization.md). Executable code lives under `src/cy_th/query/`.
+Record semantics stay in [Record Contracts](records.md) and physical layout in [Materialization Contract](materialization.md). Executable code lives under `src/cy_th/query/`.
 
 ## 1. Contract Statement
 

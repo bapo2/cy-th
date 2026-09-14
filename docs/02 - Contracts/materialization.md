@@ -2,7 +2,7 @@
 
 This document defines **how projected USASpending CSVs become the durable local Parquet surface.**
 
-Record semantics stay in [Record Contracts](record-contracts.md) and acquisition intent in [Ingestion Contract](ingestion-contract.md) while this covers the materialize path that we've implemented.
+Record semantics stay in [Record Contracts](records.md) and acquisition intent in [Ingestion Contract](ingestion.md) while this covers the materialize path that we've implemented.
 
 Executable code lives under `src/cy_th/materialize/`.
 
@@ -132,4 +132,4 @@ src/cy_th/materialize/
 └── paths.py         # data-root / run-id / CURRENT helpers
 ```
 
-Logical column contracts and the download allowlist are under `src/cy_th/schema/` (see [Record Contracts](record-contracts.md)).
+Logical column contracts and the download allowlist are under `src/cy_th/schema/` (see [Record Contracts](records.md)).
