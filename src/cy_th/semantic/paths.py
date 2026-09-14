@@ -30,7 +30,7 @@ QUERY_PREFIX: Final[str] = (
 )
 """BGE query-only instruction prepended at search time (not on documents)."""
 
-DEFAULT_EMBED_BATCH_SIZE: Final[int] = 64
+DEFAULT_EMBED_BATCH_SIZE: Final[int] = 512
 DEFAULT_SEARCH_CHUNK_SIZE: Final[int] = 8192
 
 
