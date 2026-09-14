@@ -494,7 +494,7 @@ Job-ID is deterministic from population + interval + projection + ingest version
 
 ### 19.2 Partitioning
 
-`POST /download/count/` then bisect the date window until each shard is ≤ 500k rows (USASpending download cap). A single day still over the cap fails clearly.
+`POST /download/count/` then bisect the date window until each shard is ≤ 500k rows (USASpending download cap). A single day still over the cap fails clearly. Transient count failures (HTTP 502/503/504 after retries) on multi-day windows are treated as "too large to count" and bisected the same way.
 
 ### 19.3 Code map
 

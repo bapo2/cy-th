@@ -43,3 +43,13 @@ class UsaSpendingApiError(IngestError):
     def __init__(self, detail: str) -> None:
         self.detail = detail
         super().__init__(detail)
+
+class TransientUsaSpendingError(UsaSpendingApiError):
+    """Raised after retries for gateway timeouts / transient upstream failures.
+
+    Large `action_date` windows often 504 on `/download/count/`; the planner treats this as "too large to count" and bisects.
+    """
+
+    def __init__(self, detail: str, *, status_code: int | None = None) -> None:
+        self.status_code = status_code
+        super().__init__(detail)

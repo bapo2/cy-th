@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date
 import pytest
 
-from cy_th.ingest.errors import ShardTooLargeError
+from cy_th.ingest.errors import ShardTooLargeError, TransientUsaSpendingError
 from cy_th.ingest.fake import FakeDownloadClient
 from cy_th.ingest.filters import count_request_body, download_request_body
 from cy_th.ingest.planner import plan_shards
@@ -67,6 +67,21 @@ def test_single_day_over_cap_fails() -> None:
     day = DateWindow(start=date(2025, 1, 1), end=date(2025, 1, 1))
     client = FakeDownloadClient(counts={"2025-01-01_2025-01-01": 900_000})
     with pytest.raises(ShardTooLargeError, match="2025-01-01"):
+        plan_shards(day, client, cap=500_000)
+
+def test_count_timeout_bisects_until_countable() -> None:
+    # Full 4-day window times out; halves that are <= 2 days succeed under cap.
+    client = FakeDownloadClient(rows_per_day=10, timeout_when_days_gt=2)
+    planned = plan_shards(JAN, client, cap=100)
+    assert planned
+    assert all(shard.planned_count <= 100 for shard in planned)
+    assert all((s.window.end - s.window.start).days + 1 <= 2 for s in planned)
+    assert any("2025-01-01_2025-01-04" in call for call in client.count_calls)
+
+def test_single_day_count_timeout_fails() -> None:
+    day = DateWindow(start=date(2025, 1, 1), end=date(2025, 1, 1))
+    client = FakeDownloadClient(timeout_when_days_gt=0)
+    with pytest.raises(TransientUsaSpendingError):
         plan_shards(day, client, cap=500_000)
 
 def test_request_bodies_lock_population() -> None:

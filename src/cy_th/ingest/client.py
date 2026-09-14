@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 import zipfile
 
-from cy_th.ingest.errors import UsaSpendingApiError
+from cy_th.ingest.errors import TransientUsaSpendingError, UsaSpendingApiError
 from cy_th.ingest.filters import (
     API_BASE,
     ENDPOINT_COUNT,
@@ -33,7 +33,8 @@ from cy_th.schema.projection import TRANSACTION_DOWNLOAD_COLUMNS
 USER_AGENT: str = "Mozilla/5.0 (compatible; cy-th-ingest/0.1)"
 _POLL_SECONDS: float = 2.0
 _POLL_ATTEMPTS: int = 300
-_HTTP_RETRIES: int = 4
+_HTTP_RETRIES: int = 5
+_TRANSIENT_HTTP: frozenset[int] = frozenset({502, 503, 504})
 
 
 # === Client ===
@@ -162,22 +163,52 @@ class UsaSpendingClient:
 
     def _open_bytes(self, req: urllib.request.Request) -> bytes:
         last: BaseException | None = None
+        last_status: int | None = None
         for attempt in range(_HTTP_RETRIES):
             try:
                 with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                     return resp.read()
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")
+                if exc.code in _TRANSIENT_HTTP:
+                    last = UsaSpendingApiError(f"HTTP {exc.code} for {req.full_url}: {detail}")
+                    last_status = exc.code
+                    if attempt + 1 >= _HTTP_RETRIES:
+                        break
+                    delay = 2.0 * (attempt + 1)
+                    print(
+                        f"USASpending HTTP {exc.code} (retry {attempt + 1}/{_HTTP_RETRIES - 1} "
+                        f"in {delay:.0f}s): {req.full_url}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    time.sleep(delay)
+                    continue
                 raise UsaSpendingApiError(
                     f"HTTP {exc.code} for {req.full_url}: {detail}"
                 ) from exc
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
                 last = exc
+                last_status = None
                 if attempt + 1 >= _HTTP_RETRIES:
                     break
-                time.sleep(1.0 * (attempt + 1))
+                delay = 1.0 * (attempt + 1)
+                print(
+                    f"USASpending request error (retry {attempt + 1}/{_HTTP_RETRIES - 1} "
+                    f"in {delay:.0f}s): {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(delay)
         assert last is not None
-        raise UsaSpendingApiError(f"request failed for {req.full_url}: {last}") from last
+        if last_status in _TRANSIENT_HTTP:
+            raise TransientUsaSpendingError(
+                f"request failed for {req.full_url} after {_HTTP_RETRIES} attempts: {last}",
+                status_code=last_status,
+            ) from last
+        raise UsaSpendingApiError(
+            f"request failed for {req.full_url}: {last}"
+        ) from last
 
 
 # === Zip Extract ===
