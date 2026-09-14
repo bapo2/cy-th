@@ -64,13 +64,13 @@ Builds the BGE semantic index for the pinned `CURRENT` set. Use a CUDA torch bui
 ```sh
 # PowerShell
 $env:OPENAI_API_KEY = "sk-..."
-uv run cyth ask --data-root .data "Which recipient had the highest total obligation in the local window?"
+uv run cyth ask "Which recipient had the highest total obligation in the local window?"
 ```
 
 ```sh
 # bash
 export OPENAI_API_KEY="sk-..."
-uv run cyth ask --data-root .data "Which recipient had the highest total obligation in the local window?"
+uv run cyth ask "Which recipient had the highest total obligation in the local window?"
 ```
 
 **Optional model override:** `--model <model slug>` (or set `CYTH_MODEL`).
@@ -106,7 +106,7 @@ uv run cyth semantic build [--data-root .data] [--force] [--batch-size 1024] [--
 ### `ask`
 
 ```sh
-uv run cyth ask [--data-root .data] [--provider openai] [--model gpt-4.1] "Your question"
+uv run cyth ask [--data-root .data] [--provider openai] [--model gpt-5.6-luna] "Your question"
 ```
 
 ### Other
