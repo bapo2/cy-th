@@ -31,6 +31,14 @@ class SemanticMetadata:
 # === Hits / Search ===
 
 @dataclass(frozen=True, slots=True)
+class SemanticDocument:
+    """One assembled Award semantic document ready to embed."""
+
+    award_id: str
+    document_id: str
+    text: str
+
+@dataclass(frozen=True, slots=True)
 class SemanticHit:
     """One ranked semantic search hit."""
 
