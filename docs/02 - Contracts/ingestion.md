@@ -509,3 +509,55 @@ src/cy_th/ingest/
 ├── paths.py       # ingest/<job-id>/shards
 └── types.py
 ```
+
+## 20. Lazy Enrichment
+
+Enrichment fetches USASpending award detail on demand and caches it under the data root. **It does not rewrite `CURRENT` / Parquet.**
+
+```text
+uv run python -c "from cy_th.enrichment.service import enrich_award; ..."
+```
+
+**Library entrypoints:** `enrich_award(dataset, award_id)`, `enrich_idv(dataset, idv_id)` in `cy_th.enrichment.service`
+
+### 20.1 On-disk layout
+
+```text
+<data-root>/
+├── enrichment/
+│   ├── awards/<urlsafe-award-id>.json
+│   └── idvs/<urlsafe-idv-id>.json
+├── ingest/...
+├── sets/<run-id>/
+└── CURRENT
+```
+
+Each cache record preserves `resource_type`, `source_id`, `endpoint`, `retrieved_at`, `selected` (parsed fields), and full `payload`. Evict by deleting the file; the core dataset must not depend on cache retention.
+
+### 20.2 Overlay rules
+
+- Endpoint: `GET /api/v2/awards/{generated_unique_award_id}/` (works for Awards and IDVs)
+- Always expose `date_signed` on the Award overlay when present on detail
+- Apply detail money **only when local `snapshot_status` is `requires_enrichment`** → overlay may set `snapshot_source=award_detail`
+- IDV overlay reports `hydration_status=hydrated` with type code/label from detail; local stub rows stay `stub`
+
+### 20.3 Provenance chain
+
+```text
+local fact → source Award / Transaction id
+           → ingest job + shard manifest (acquisition)
+           → enrichment cache record (detail endpoint + retrieval time) when overlay fields are used
+```
+
+### 20.4 Code map
+
+```text
+src/cy_th/enrichment/
+├── service.py     # enrich_award / enrich_idv / evict
+├── reconcile.py   # selected fields + money gate
+├── cache.py       # JSON cache IO
+├── client.py      # live award-detail HTTP
+├── fake.py        # offline DetailClient
+├── paths.py
+└── types.py
+```
