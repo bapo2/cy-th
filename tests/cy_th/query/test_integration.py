@@ -28,7 +28,7 @@ def test_resolve_then_aggregate_pop_filter(dataset: ProcurementDataset) -> None:
 
     window = ActivityWindow(from_date=date(2025, 1, 1), to_date=date(2025, 1, 31))
     with dataset:
-        award_ids = dataset.resolve_awards(
+        selection = dataset.resolve_awards(
             AwardFilters(
                 location=LocationFilter(
                     role=LocationRole.PLACE_OF_PERFORMANCE,
@@ -36,8 +36,8 @@ def test_resolve_then_aggregate_pop_filter(dataset: ProcurementDataset) -> None:
                 )
             )
         )
-        assert award_ids == frozenset({"A1"})
-        rows = dataset.aggregate_activity(award_ids, window, group_by=GroupBy.AWARD)
+        assert dataset.award_ids(selection) == frozenset({"A1"})
+        rows = dataset.aggregate_activity(selection, window, group_by=GroupBy.AWARD)
         assert len(rows) == 1
         assert rows[0].award_id == "A1"
         assert rows[0].total_obligation == Decimal("100.00")
@@ -46,10 +46,10 @@ def test_resolve_naics_and_aggregate_by_recipient(dataset: ProcurementDataset) -
     window = ActivityWindow(from_date=date(2025, 1, 1), to_date=date(2025, 2, 28))
     naics = classification_id(ClassificationKind.NAICS, "541330")
     with dataset:
-        award_ids = dataset.resolve_awards(AwardFilters(naics_ids=[naics]))
-        assert award_ids == frozenset({"A1", "A3"})
+        selection = dataset.resolve_awards(AwardFilters(naics_ids=[naics]))
+        assert dataset.award_ids(selection) == frozenset({"A1", "A3"})
         rows = dataset.aggregate_activity(
-            award_ids,
+            selection,
             window,
             group_by=GroupBy.RECIPIENT,
         )
@@ -88,10 +88,10 @@ def test_real_extract_resolve_aggregate_smoke(
     with ProcurementDataset.open(out) as ds:
         count_row = ds.conn.execute("SELECT COUNT(*) FROM transaction_fact").fetchone()
         assert count_row is not None and count_row[0] > 0
-        award_ids = ds.resolve_awards(AwardFilters(awarding_agency_ids=[dod]))
-        assert len(award_ids) > 0
+        selection = ds.resolve_awards(AwardFilters(awarding_agency_ids=[dod]))
+        assert selection.count > 0
         top = ds.aggregate_activity(
-            award_ids,
+            selection,
             window,
             group_by=GroupBy.AWARD,
             limit=5,

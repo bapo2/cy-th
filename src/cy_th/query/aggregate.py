@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 from decimal import Decimal
-from typing import Collection, Literal, overload
+from typing import Literal, overload
 import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
@@ -15,6 +15,7 @@ from cy_th.materialize.transactions import TABLE_TRANSACTIONS
 from cy_th.query.types import (
     ActivityWindow,
     AwardActivityRow,
+    AwardSelection,
     GroupBy,
     RecipientActivityRow,
 )
@@ -26,7 +27,7 @@ from cy_th.schema.db_types import quote_ident
 @overload
 def aggregate_activity(  # Overload for `AwardActivityRow` to make type-checker happy
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Collection[str],
+    selection: AwardSelection,
     window: ActivityWindow,
     *,
     group_by: Literal[GroupBy.AWARD] = GroupBy.AWARD,
@@ -36,7 +37,7 @@ def aggregate_activity(  # Overload for `AwardActivityRow` to make type-checker 
 @overload
 def aggregate_activity(  # Overload for `RecipientActivityRow` to make type-checker happy
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Collection[str],
+    selection: AwardSelection,
     window: ActivityWindow,
     *,
     group_by: Literal[GroupBy.RECIPIENT],
@@ -45,17 +46,18 @@ def aggregate_activity(  # Overload for `RecipientActivityRow` to make type-chec
 
 def aggregate_activity(
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Collection[str],
+    selection: AwardSelection,
     window: ActivityWindow,
     *,
     group_by: GroupBy = GroupBy.AWARD,
     limit: int | None = None,
 ) -> list[AwardActivityRow] | list[RecipientActivityRow]:
-    """Sum `federal_action_obligation` for qualifying Awards in an activity window.
+    """Sum `federal_action_obligation` for an `AwardSelection` in an activity window.
 
     #### Semantics:
-        - Empty `award_ids` → empty result (we don't treat as "all")
+        - Empty selection (`count == 0`) → empty result
         - Inclusive `[from_date, to_date]` on `transaction_fact.action_date`
+        - Qualifying Awards come from a JOIN to the selection temp relation
         - Null obligations ignored inside `SUM` & null-total groups excluded
         - Ranked by `total_obligation DESC`, then stable ID `ASC`
     """
@@ -67,13 +69,13 @@ def aggregate_activity(
     if limit is not None and limit < 0:
         raise ValueError(f"limit must be >= 0, got {limit}")
 
-    if not award_ids:
+    if selection.count == 0:
         return []
 
     if group_by is GroupBy.AWARD:
-        return _aggregate_by_award(conn, award_ids, window, limit=limit)
+        return _aggregate_by_award(conn, selection, window, limit=limit)
     if group_by is GroupBy.RECIPIENT:
-        return _aggregate_by_recipient(conn, award_ids, window, limit=limit)
+        return _aggregate_by_recipient(conn, selection, window, limit=limit)
     raise ValueError(f"unsupported group_by: {group_by!r}")  # Purely defensive, likely unreachable
 
 
@@ -81,7 +83,7 @@ def aggregate_activity(
 
 def _aggregate_by_award(
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Collection[str],
+    selection: AwardSelection,
     window: ActivityWindow,
     *,
     limit: int | None,
@@ -90,6 +92,7 @@ def _aggregate_by_award(
 
     t = quote_ident(TABLE_TRANSACTIONS)
     a = quote_ident(TABLE_AWARDS)
+    s = quote_ident(selection.relation_name)
     sql = f"""
         SELECT
           a.{quote_ident('award_id')} AS award_id,
@@ -99,10 +102,11 @@ def _aggregate_by_award(
           a.{quote_ident('piid')} AS piid,
           a.{quote_ident('usaspending_permalink')} AS usaspending_permalink
         FROM {t} AS t
+        INNER JOIN {s} AS s
+          ON s.{quote_ident('award_id')} = t.{quote_ident('award_id')}
         INNER JOIN {a} AS a
           ON a.{quote_ident('award_id')} = t.{quote_ident('award_id')}
-        WHERE t.{quote_ident('award_id')} IN (SELECT UNNEST(?))
-          AND t.{quote_ident('action_date')} BETWEEN ? AND ?
+        WHERE t.{quote_ident('action_date')} BETWEEN ? AND ?
         GROUP BY
           a.{quote_ident('award_id')},
           a.{quote_ident('recipient_id')},
@@ -111,7 +115,7 @@ def _aggregate_by_award(
         HAVING SUM(t.{quote_ident('federal_action_obligation')}) IS NOT NULL
         ORDER BY total_obligation DESC, award_id ASC
     """
-    params: list[object] = [list(award_ids), window.from_date, window.to_date]
+    params: list[object] = [window.from_date, window.to_date]
     if limit is not None:
         sql += "\nLIMIT ?"
         params.append(limit)
@@ -134,7 +138,7 @@ def _aggregate_by_award(
 
 def _aggregate_by_recipient(
     conn: duckdb.DuckDBPyConnection,
-    award_ids: Collection[str],
+    selection: AwardSelection,
     window: ActivityWindow,
     *,
     limit: int | None,
@@ -144,6 +148,7 @@ def _aggregate_by_recipient(
     t = quote_ident(TABLE_TRANSACTIONS)
     a = quote_ident(TABLE_AWARDS)
     r = quote_ident(TABLE_RECIPIENTS)
+    s = quote_ident(selection.relation_name)
     sql = f"""
         SELECT
           a.{quote_ident('recipient_id')} AS recipient_id,
@@ -151,12 +156,13 @@ def _aggregate_by_recipient(
           COUNT(*)::BIGINT AS transaction_count,
           r.{quote_ident('name')} AS name
         FROM {t} AS t
+        INNER JOIN {s} AS s
+          ON s.{quote_ident('award_id')} = t.{quote_ident('award_id')}
         INNER JOIN {a} AS a
           ON a.{quote_ident('award_id')} = t.{quote_ident('award_id')}
         LEFT JOIN {r} AS r
           ON r.{quote_ident('uei')} = a.{quote_ident('recipient_id')}
-        WHERE t.{quote_ident('award_id')} IN (SELECT UNNEST(?))
-          AND t.{quote_ident('action_date')} BETWEEN ? AND ?
+        WHERE t.{quote_ident('action_date')} BETWEEN ? AND ?
           AND a.{quote_ident('recipient_id')} IS NOT NULL
         GROUP BY
           a.{quote_ident('recipient_id')},
@@ -164,7 +170,7 @@ def _aggregate_by_recipient(
         HAVING SUM(t.{quote_ident('federal_action_obligation')}) IS NOT NULL
         ORDER BY total_obligation DESC, recipient_id ASC
     """
-    params: list[object] = [list(award_ids), window.from_date, window.to_date]
+    params: list[object] = [window.from_date, window.to_date]
     if limit is not None:
         sql += "\nLIMIT ?"
         params.append(limit)

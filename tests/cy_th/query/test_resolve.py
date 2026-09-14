@@ -17,22 +17,25 @@ from cy_th.schema.keys import agency_id, classification_id, office_id
 
 def test_unconstrained_returns_all_awards(dataset: ProcurementDataset) -> None:
     with dataset:
-        assert dataset.resolve_awards() == frozenset({"A1", "A2", "A3", "A4"})
+        sel = dataset.resolve_awards()
+        assert sel.count == 4
+        assert dataset.award_ids(sel) == frozenset({"A1", "A2", "A3", "A4"})
 
 def test_empty_list_means_zero_matches(dataset: ProcurementDataset) -> None:
     with dataset:
-        assert dataset.resolve_awards(AwardFilters(recipient_ids=[])) == frozenset()
-        assert dataset.resolve_awards(AwardFilters(award_ids=[])) == frozenset()
+        assert dataset.resolve_awards(AwardFilters(recipient_ids=[])).count == 0
+        assert dataset.resolve_awards(AwardFilters(award_ids=[])).count == 0
+        assert dataset.award_ids(dataset.resolve_awards(AwardFilters(award_ids=[]))) == frozenset()
 
 def test_award_ids_and_with_other_filters(dataset: ProcurementDataset) -> None:
     with dataset:
-        got = dataset.resolve_awards(
+        sel = dataset.resolve_awards(
             AwardFilters(
                 award_ids=["A1", "A2", "A3"],
                 recipient_ids=["UEI_ALPHA"],
             )
         )
-        assert got == frozenset({"A1", "A3"})
+        assert dataset.award_ids(sel) == frozenset({"A1", "A3"})
 
 
 # === Topology Filters ===
@@ -46,32 +49,34 @@ def test_recipient_and_agency_office_classification(dataset: ProcurementDataset)
         naics = classification_id(ClassificationKind.NAICS, "541330")
         psc = classification_id(ClassificationKind.PSC, "R425")
 
-        assert dataset.resolve_awards(AwardFilters(recipient_ids=["UEI_BETA"])) == frozenset(
-            {"A2"}
-        )
-        assert dataset.resolve_awards(AwardFilters(awarding_agency_ids=[dod])) == frozenset(
-            {"A1", "A2", "A3", "A4"}
-        )
-        assert dataset.resolve_awards(
-            AwardFilters(awarding_sub_agency_ids=[navy])
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(recipient_ids=["UEI_BETA"]))
+        ) == frozenset({"A2"})
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(awarding_agency_ids=[dod]))
+        ) == frozenset({"A1", "A2", "A3", "A4"})
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(awarding_sub_agency_ids=[navy]))
         ) == frozenset({"A1", "A3"})
-        assert dataset.resolve_awards(
-            AwardFilters(awarding_office_ids=[navsea])
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(awarding_office_ids=[navsea]))
         ) == frozenset({"A1", "A3"})
-        assert dataset.resolve_awards(AwardFilters(naics_ids=[naics])) == frozenset(
-            {"A1", "A3"}
-        )
-        assert dataset.resolve_awards(AwardFilters(psc_ids=[psc])) == frozenset({"A1", "A3"})
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(naics_ids=[naics]))
+        ) == frozenset({"A1", "A3"})
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(psc_ids=[psc]))
+        ) == frozenset({"A1", "A3"})
 
 def test_funding_office_distinct_from_awarding(dataset: ProcurementDataset) -> None:
     with dataset:
         army_office = office_id(sub_agency_code="5700", office_code="W15P7T")
         assert army_office is not None
-        assert dataset.resolve_awards(
-            AwardFilters(funding_office_ids=[army_office])
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(funding_office_ids=[army_office]))
         ) == frozenset({"A2"})
-        assert dataset.resolve_awards(
-            AwardFilters(awarding_office_ids=[army_office])
+        assert dataset.award_ids(
+            dataset.resolve_awards(AwardFilters(awarding_office_ids=[army_office]))
         ) == frozenset({"A2"})
 
 
@@ -79,19 +84,23 @@ def test_funding_office_distinct_from_awarding(dataset: ProcurementDataset) -> N
 
 def test_location_role_is_not_silently_ored(dataset: ProcurementDataset) -> None:
     with dataset:
-        pop_va = dataset.resolve_awards(
-            AwardFilters(
-                location=LocationFilter(
-                    role=LocationRole.PLACE_OF_PERFORMANCE,
-                    state_code="VA",
+        pop_va = dataset.award_ids(
+            dataset.resolve_awards(
+                AwardFilters(
+                    location=LocationFilter(
+                        role=LocationRole.PLACE_OF_PERFORMANCE,
+                        state_code="VA",
+                    )
                 )
             )
         )
-        rec_va = dataset.resolve_awards(
-            AwardFilters(
-                location=LocationFilter(
-                    role=LocationRole.RECIPIENT,
-                    state_code="VA",
+        rec_va = dataset.award_ids(
+            dataset.resolve_awards(
+                AwardFilters(
+                    location=LocationFilter(
+                        role=LocationRole.RECIPIENT,
+                        state_code="VA",
+                    )
                 )
             )
         )
@@ -100,12 +109,14 @@ def test_location_role_is_not_silently_ored(dataset: ProcurementDataset) -> None
 
 def test_location_structured_city_normalized(dataset: ProcurementDataset) -> None:
     with dataset:
-        got = dataset.resolve_awards(
-            AwardFilters(
-                location=LocationFilter(
-                    role=LocationRole.PLACE_OF_PERFORMANCE,
-                    state_code="MD",
-                    city_name=" BETHESDA ",
+        got = dataset.award_ids(
+            dataset.resolve_awards(
+                AwardFilters(
+                    location=LocationFilter(
+                        role=LocationRole.PLACE_OF_PERFORMANCE,
+                        state_code="MD",
+                        city_name=" BETHESDA ",
+                    )
                 )
             )
         )
@@ -113,17 +124,15 @@ def test_location_structured_city_normalized(dataset: ProcurementDataset) -> Non
 
 def test_location_ids_empty_zero_matches(dataset: ProcurementDataset) -> None:
     with dataset:
-        assert (
-            dataset.resolve_awards(
-                AwardFilters(
-                    location=LocationFilter(
-                        role=LocationRole.PLACE_OF_PERFORMANCE,
-                        location_ids=[],
-                    )
+        sel = dataset.resolve_awards(
+            AwardFilters(
+                location=LocationFilter(
+                    role=LocationRole.PLACE_OF_PERFORMANCE,
+                    location_ids=[],
                 )
             )
-            == frozenset()
         )
+        assert sel.count == 0
 
 def test_location_filter_requires_predicates(dataset: ProcurementDataset) -> None:
     with dataset:
@@ -131,3 +140,10 @@ def test_location_filter_requires_predicates(dataset: ProcurementDataset) -> Non
             dataset.resolve_awards(
                 AwardFilters(location=LocationFilter(role=LocationRole.RECIPIENT))
             )
+
+def test_select_awards_from_explicit_ids(dataset: ProcurementDataset) -> None:
+    with dataset:
+        sel = dataset.select_awards(["A1", "A3", "A1"])
+        assert sel.count == 2
+        assert dataset.award_ids(sel) == frozenset({"A1", "A3"})
+        assert dataset.select_awards([]).count == 0

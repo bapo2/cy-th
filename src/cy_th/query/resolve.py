@@ -1,16 +1,16 @@
 # cy_th/query/resolve.py
 
-"""Resolve qualifying Award IDs from projected Award / ref topology filters."""
+"""Resolve qualifying Award IDs into a session-scoped DuckDB selection."""
 
 # === Imports ===
 
 from __future__ import annotations
-from typing import Final, Sequence
+from typing import Collection, Final, Sequence
 import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
 from cy_th.materialize.references import TABLE_LOCATIONS
-from cy_th.query.types import AwardFilters, LocationFilter, LocationRole
+from cy_th.query.types import AwardFilters, AwardSelection, LocationFilter, LocationRole
 from cy_th.schema.db_types import quote_ident
 from cy_th.schema.keys import normalize_city_name
 
@@ -42,15 +42,19 @@ _LOCATION_FK: Final[dict[LocationRole, str]] = {
 def resolve_awards(
     conn: duckdb.DuckDBPyConnection,
     filters: AwardFilters | None = None,
-) -> frozenset[str]:
-    """Return Award IDs matching projected topology filters (all predicates AND'd).
+    *,
+    relation_name: str,
+) -> AwardSelection:
+    """Materialize qualifying Award IDs into a temp table named `relation_name`.
 
     #### Semantics:
-        - `None` → unconstrained
+        - Filter list `None` → unconstrained
         - Empty iterable → zero matches (we don't treat as "all")
+        - Result is an `AwardSelection` for JOIN-based aggregation
     """
 
     filters = filters if filters is not None else AwardFilters()
+    qname = quote_ident(relation_name)
 
     clauses: list[str] = []
     params: list[object] = []
@@ -60,23 +64,68 @@ def resolve_awards(
         if values is None:
             continue
         if len(values) == 0:
-            return frozenset()
-        clauses.append(
-            f"a.{quote_ident(column)} IN (SELECT UNNEST(?))"
-        )
+            return _empty_selection(conn, relation_name=relation_name)
+        clauses.append(f"a.{quote_ident(column)} IN (SELECT UNNEST(?))")
         params.append(list(values))
 
     if filters.location is not None:
         loc_sql, loc_params, empty = _location_clause(filters.location)
         if empty:
-            return frozenset()
+            return _empty_selection(conn, relation_name=relation_name)
         clauses.append(loc_sql)
         params.extend(loc_params)
 
     a = quote_ident(TABLE_AWARDS)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-    sql = f"SELECT a.{quote_ident('award_id')} FROM {a} AS a{where}"
-    rows = conn.execute(sql, params).fetchall()
+    conn.execute(f"DROP TABLE IF EXISTS {qname}")
+    conn.execute(
+        f"""
+        CREATE TEMP TABLE {qname} AS
+        SELECT DISTINCT a.{quote_ident('award_id')} AS {quote_ident('award_id')}
+        FROM {a} AS a
+        {where}
+        """,
+        params,
+    )
+    return _selection_from_relation(conn, relation_name=relation_name)
+
+def select_awards(
+    conn: duckdb.DuckDBPyConnection,
+    award_ids: Collection[str],
+    *,
+    relation_name: str,
+) -> AwardSelection:
+    """Materialize an `AwardSelection` from an explicit Award ID collection.
+
+    Used by tests + semantic retrieval candidate handoff. Empty collections yield an empty selection (we don't treat as "all").
+    """
+
+    qname = quote_ident(relation_name)
+    conn.execute(f"DROP TABLE IF EXISTS {qname}")
+    if not award_ids:
+        return _empty_selection(conn, relation_name=relation_name)
+
+    conn.execute(
+        f"""
+        CREATE TEMP TABLE {qname} AS
+        SELECT DISTINCT UNNEST(?) AS {quote_ident('award_id')}
+        """,
+        [list(award_ids)],
+    )
+    return _selection_from_relation(conn, relation_name=relation_name)
+
+def selection_award_ids(
+    conn: duckdb.DuckDBPyConnection,
+    selection: AwardSelection,
+) -> frozenset[str]:
+    """Fetch Award IDs from a selection into Python (tests/debug)."""
+
+    if selection.count == 0:
+        return frozenset()
+    qname = quote_ident(selection.relation_name)
+    rows = conn.execute(
+        f"SELECT {quote_ident('award_id')} FROM {qname}"
+    ).fetchall()
     return frozenset(str(row[0]) for row in rows)
 
 
@@ -158,3 +207,32 @@ def _structured_exists(
         + ")"
     )
     return sql, params
+
+
+# === Selection Helpers ===
+
+def _empty_selection(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    relation_name: str,
+) -> AwardSelection:
+    """Create an empty temp Award ID table."""
+
+    qname = quote_ident(relation_name)
+    conn.execute(f"DROP TABLE IF EXISTS {qname}")
+    conn.execute(
+        f"CREATE TEMP TABLE {qname} ({quote_ident('award_id')} VARCHAR)"
+    )
+    return AwardSelection(relation_name=relation_name, count=0)
+
+def _selection_from_relation(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    relation_name: str,
+) -> AwardSelection:
+    """Build `AwardSelection` metadata for an existing temp relation."""
+
+    qname = quote_ident(relation_name)
+    row = conn.execute(f"SELECT COUNT(*) FROM {qname}").fetchone()
+    assert row is not None
+    return AwardSelection(relation_name=relation_name, count=int(row[0]))

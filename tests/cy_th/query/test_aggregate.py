@@ -22,13 +22,13 @@ FULL = ActivityWindow(from_date=date(2025, 1, 1), to_date=date(2025, 2, 28))
 
 # === Core Semantics ===
 
-def test_empty_award_ids_returns_empty(dataset: ProcurementDataset) -> None:
+def test_empty_selection_returns_empty(dataset: ProcurementDataset) -> None:
     with dataset:
-        assert dataset.aggregate_activity([], JAN) == []
+        assert dataset.aggregate_activity(dataset.select_awards([]), JAN) == []
 
 def test_inclusive_date_window_and_sums(dataset: ProcurementDataset) -> None:
     with dataset:
-        ids = ["A1", "A2", "A3", "A4"]
+        ids = dataset.select_awards(["A1", "A2", "A3", "A4"])
         jan = dataset.aggregate_activity(ids, JAN, group_by=GroupBy.AWARD)
         by_id = {row.award_id: row for row in jan}
         assert set(by_id) == {"A1", "A2", "A3"}  # A4 null-only excluded
@@ -42,19 +42,23 @@ def test_inclusive_date_window_and_sums(dataset: ProcurementDataset) -> None:
         assert [row.award_id for row in feb] == ["A1"]
         assert feb[0].total_obligation == Decimal("50.00")
 
-        full = dataset.aggregate_activity(["A1"], FULL, group_by=GroupBy.AWARD)
+        full = dataset.aggregate_activity(
+            dataset.select_awards(["A1"]), FULL, group_by=GroupBy.AWARD
+        )
         assert full[0].total_obligation == Decimal("150.00")
         assert full[0].transaction_count == 2
 
 def test_null_total_groups_excluded(dataset: ProcurementDataset) -> None:
     with dataset:
-        rows = dataset.aggregate_activity(["A4"], JAN, group_by=GroupBy.AWARD)
+        rows = dataset.aggregate_activity(
+            dataset.select_awards(["A4"]), JAN, group_by=GroupBy.AWARD
+        )
         assert rows == []
 
 def test_rank_order_limit_and_tiebreak(dataset: ProcurementDataset) -> None:
     with dataset:
         rows = dataset.aggregate_activity(
-            ["A1", "A2", "A3"],
+            dataset.select_awards(["A1", "A2", "A3"]),
             JAN,
             group_by=GroupBy.AWARD,
             limit=2,
@@ -69,7 +73,7 @@ def test_rank_order_limit_and_tiebreak(dataset: ProcurementDataset) -> None:
 def test_group_by_recipient(dataset: ProcurementDataset) -> None:
     with dataset:
         rows = dataset.aggregate_activity(
-            ["A1", "A2", "A3"],
+            dataset.select_awards(["A1", "A2", "A3"]),
             JAN,
             group_by=GroupBy.RECIPIENT,
         )
@@ -80,12 +84,14 @@ def test_group_by_recipient(dataset: ProcurementDataset) -> None:
         assert by_uei["UEI_ALPHA"].total_obligation == Decimal("175.00")
         assert by_uei["UEI_ALPHA"].name == "Alpha Corp"
         assert by_uei["UEI_BETA"].total_obligation == Decimal("200.00")
-        # Ranked = Beta 200, Alpha 175
+        # ranked: Beta 200, Alpha 175
         assert [row.recipient_id for row in rows] == ["UEI_BETA", "UEI_ALPHA"]
 
 def test_result_preserves_award_provenance_fields(dataset: ProcurementDataset) -> None:
     with dataset:
-        rows = dataset.aggregate_activity(["A2"], JAN, group_by=GroupBy.AWARD)
+        rows = dataset.aggregate_activity(
+            dataset.select_awards(["A2"]), JAN, group_by=GroupBy.AWARD
+        )
         assert len(rows) == 1
         row = rows[0]
         assert isinstance(row, AwardActivityRow)
@@ -95,10 +101,11 @@ def test_result_preserves_award_provenance_fields(dataset: ProcurementDataset) -
 
 def test_rejects_inverted_window_and_negative_limit(dataset: ProcurementDataset) -> None:
     with dataset:
+        sel = dataset.select_awards(["A1"])
         with pytest.raises(ValueError, match="from_date"):
             dataset.aggregate_activity(
-                ["A1"],
+                sel,
                 ActivityWindow(from_date=date(2025, 2, 1), to_date=date(2025, 1, 1)),
             )
         with pytest.raises(ValueError, match="limit"):
-            dataset.aggregate_activity(["A1"], JAN, limit=-1)
+            dataset.aggregate_activity(sel, JAN, limit=-1)
