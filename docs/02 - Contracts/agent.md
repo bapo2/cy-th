@@ -162,9 +162,10 @@ Always retained on the result for debugging and tests. Do not dump the full trac
 
 ## 7. Prompt / Policy
 
-- Prompt text lives in code (`prompts.py`); this contract documents the rules
+- Prompt / instruction text lives in `prompts.py` (**strategy is still open:** multi-turn chat context, what belongs in standing instructions vs. tool observations, etc.)
+- The loop **does not** dump session registry state into instructions; acquired evidence reaches the model primarily as **tool observations** (plus provider conversation chaining)
 - **Hard-enforce:** Budgets, schemas, opaque refs, tool dispatch, citation membership
-- **Prompt-enforce:** Do not compute obligation totals / rankings / counts by model arithmetic when aggregation exists; prefer `SelectionRef` composition; cite only acquired Awards; on forced final turn, acknowledge gaps rather than invent results
+- **Prompt-enforce (once prompts are locked):** Do not compute obligation totals / rankings / counts by model arithmetic when aggregation exists; prefer `SelectionRef` composition; cite only acquired Awards; on forced final turn, acknowledge gaps rather than invent results
 
 ## 8. Serialization
 
