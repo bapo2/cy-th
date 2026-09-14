@@ -6,6 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12.10"
 dependencies = [
     "duckdb>=1.5.5",
+    "numpy>=2.0",
+]
+
+[project.optional-dependencies]
+semantic = [
+    "sentence-transformers>=3.0",
 ]
 
 [project.scripts]
@@ -39,6 +45,7 @@ addopts = [
 ]
 markers = [
     "network: hits USASpending when local cache/TEMP extracts are unavailable",
+    "semantic_model: optional smoke using the real sentence-transformers model",
 ]
 
 [tool.coverage.run]
