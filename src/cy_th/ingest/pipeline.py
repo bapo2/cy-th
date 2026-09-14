@@ -65,7 +65,6 @@ def ingest(
     jid = make_job_id(from_date=from_date, to_date=to_date)
     job_path = job_dir(data_root, jid)
     shards_dir(job_path).mkdir(parents=True, exist_ok=True)
-    job_path.mkdir(parents=True, exist_ok=True)
 
     resolved_client = client if client is not None else UsaSpendingClient()
     request_window = DateWindow(start=from_date, end=to_date)

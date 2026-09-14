@@ -120,46 +120,46 @@ def _build_parser() -> argparse.ArgumentParser:
     clear.set_defaults(handler=_cmd_clear_test_cache)
 
     # Ingest subcommand
-    ingest = sub.add_parser(
+    ingest_cmd = sub.add_parser(
         "ingest",
         help="acquire USASpending prime transactions and materialize CURRENT",
     )
-    ingest.add_argument(
+    ingest_cmd.add_argument(
         "--from",
         dest="from_date",
         required=True,
         metavar="YYYY-MM-DD",
         help="inclusive action_date start",
     )
-    ingest.add_argument(
+    ingest_cmd.add_argument(
         "--to",
         dest="to_date",
         required=True,
         metavar="YYYY-MM-DD",
         help="inclusive action_date end",
     )
-    ingest.add_argument(
+    ingest_cmd.add_argument(
         "--out",
         default=".data",
         metavar="DIR",
         help="data root for ingest jobs + sets/CURRENT (default: .data/)",
     )
-    ingest.add_argument(
+    ingest_cmd.add_argument(
         "--no-materialize",
         action="store_true",
         help="download shards + manifests only (do not publish a Parquet set)",
     )
-    ingest.add_argument(
+    ingest_cmd.add_argument(
         "--allow-rejects",
         action="store_true",
         help="when materializing, publish CURRENT even if reject-rows exist",
     )
-    ingest.add_argument(
+    ingest_cmd.add_argument(
         "--keep-staging",
         action="store_true",
         help="when materializing, retain .staging/<run-id>.duckdb",
     )
-    ingest.set_defaults(handler=_cmd_ingest)
+    ingest_cmd.set_defaults(handler=_cmd_ingest)
 
     return parser
 
