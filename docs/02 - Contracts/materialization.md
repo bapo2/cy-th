@@ -121,16 +121,15 @@ uv run cyth materialize --in a.csv [--in b.csv] [--out .data] [--allow-rejects] 
 ## 8. Code Map
 
 ```text
-src/cy_th/
-└── materialize/
-    ├── pipeline.py      # end-to-end orchestration
-    ├── load.py          # CSV → staging_raw
-    ├── validate.py      # casts, rejects, dedupe
-    ├── transactions.py  # TransactionFact
-    ├── references.py    # ref_* tables
-    ├── awards.py        # AwardRecord reduce
-    ├── publish.py       # Parquet + integrity + CURRENT
-    └── paths.py         # data-root / run-id / CURRENT helpers
+src/cy_th/materialize/
+├── pipeline.py      # end-to-end orchestration
+├── load.py          # CSV → staging_raw
+├── validate.py      # casts, rejects, dedupe
+├── transactions.py  # TransactionFact
+├── references.py    # ref_* tables
+├── awards.py        # AwardRecord reduce
+├── publish.py       # Parquet + integrity + CURRENT
+└── paths.py         # data-root / run-id / CURRENT helpers
 ```
 
 Logical column contracts and the download allowlist are under `src/cy_th/schema/` (see [Record Contracts](record-contracts.md)).

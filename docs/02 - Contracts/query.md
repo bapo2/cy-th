@@ -1,4 +1,4 @@
-# Query Contract
+# 🔍 Query Contract
 
 This document defines **how the procurement query runtime reads the published canonical dataset.**
 
@@ -58,7 +58,7 @@ rows = dataset.aggregate_activity(selection, window, group_by=...)
 
 `AwardSelection` carries `relation_name`, `count`, and `session_id`. Aggregation JOINs that relation; IDs are not shipped through Python between stages.
 
-Semantic retrieval may later build the same `AwardSelection` from a small candidate-ID set via `select_awards`. Fuzzy discovery *stays outside this runtime.*
+Semantic retrieval builds the same `AwardSelection` from hit IDs via `select_awards`. Fuzzy discovery lives in the [Semantic Search Contract](semantic.md).
 
 ## 4. Filter Semantics
 
