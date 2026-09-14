@@ -2,7 +2,7 @@
 
 """Available tool definitions for the procurement agent (`ToolSpec` catalog).
 
-Execution against `EvidenceSession` lives in `cy_th.agent.dispatch`.
+`EVIDENCE_TOOLS` is the procurement surface; `AGENT_TOOLS` adds terminal `submit_answer`. Execution lives in `cy_th.agent.dispatch`.
 """
 
 # === Imports ===
@@ -220,3 +220,27 @@ EVIDENCE_TOOLS: ToolDefinitions = ToolDefinitions(
         ),
     )
 )
+
+SUBMIT_ANSWER_TOOL: ToolSpec = ToolSpec(
+    name="submit_answer",
+    description=(
+        "Terminate the run with a final natural-language answer and citation Award IDs that were acquired as Award cards in this session. Unknown citation IDs are dropped."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "answer": {"type": "string"},
+            "citation_award_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+        },
+        "required": ["answer", "citation_award_ids"],
+        "additionalProperties": False,
+    },
+)
+
+AGENT_TOOLS: ToolDefinitions = ToolDefinitions(
+    specs=(*EVIDENCE_TOOLS.specs, SUBMIT_ANSWER_TOOL),
+)
+"""Evidence tools plus the orchestration-terminal `submit_answer` tool."""

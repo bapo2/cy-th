@@ -1,8 +1,10 @@
 # cy_th/agent/dispatch.py
 
-"""Dispatch `ToolCall`s onto an `EvidenceSession`.
+"""Dispatch `ToolCall`s onto an `EvidenceSession` (+ terminal `submit_answer`).
 
 Turns model-requested tool invocations into bounded JSON observations. Evidence failures become `ok: false` payloads (not raised), so an orchestration loop can feed them back as `MessageRole.TOOL` content.
+
+`submit_answer` is orchestration-terminal: on success, `ToolResult.submitted` is set and the observation is a short acknowledgement (citations already filtered).
 """
 
 # === Imports ===
@@ -13,7 +15,9 @@ from datetime import date
 from typing import Any, Callable, Mapping, Sequence
 import json
 
-from cy_th.agent.tools import EVIDENCE_TOOLS
+from cy_th.agent.errors import InvalidModelRequestError
+from cy_th.agent.submit import SUBMIT_ANSWER, SubmittedAnswer, finalize_submit_answer
+from cy_th.agent.tools import AGENT_TOOLS
 from cy_th.agent.types import Message, MessageRole, ToolCall
 from cy_th.evidence.errors import EvidenceError
 from cy_th.evidence.session import EvidenceSession
@@ -32,12 +36,19 @@ from cy_th.query.types import (
 
 @dataclass(frozen=True, slots=True)
 class ToolResult:
-    """Outcome of one dispatched tool call (success or bounded error observation)."""
+    """Outcome of one dispatched tool call (success, error, or terminal submit)."""
 
     call_id: str
     name: str
     ok: bool
     data: Mapping[str, Any]
+    submitted: SubmittedAnswer | None = None
+
+    @property
+    def terminal(self) -> bool:
+        """True when this result successfully finalized `submit_answer`."""
+
+        return self.submitted is not None
 
     @property
     def content(self) -> str:
@@ -61,12 +72,15 @@ class ToolResult:
 def dispatch_tool(session: EvidenceSession, call: ToolCall) -> ToolResult:
     """Run one `ToolCall` against `session` and return a JSON-ready observation.
 
-    Unknown tools and evidence/argument failures become `ok: false` results.
+    Unknown tools and evidence/argument failures become `ok: false` results. Successful `submit_answer` sets `ToolResult.submitted` (terminal).
     """
+
+    if call.name == SUBMIT_ANSWER:
+        return _dispatch_submit_answer(session, call)
 
     handler = _HANDLERS.get(call.name)
     if handler is None:
-        known = ", ".join(sorted(EVIDENCE_TOOLS.names))
+        known = ", ".join(sorted(AGENT_TOOLS.names))
         return _failure(
             call,
             error="UnknownTool",
@@ -91,9 +105,36 @@ def dispatch_tools(
     session: EvidenceSession,
     calls: Sequence[ToolCall],
 ) -> tuple[ToolResult, ...]:
-    """Dispatch tool calls in order (sequential; session state may accumulate)."""
+    """Dispatch tool calls in order (sequential; session state may accumulate).
+
+    Callers that treat `submit_answer` as terminal should stop when `ToolResult.terminal` is true (later calls in the same batch are still run if using this helper).
+    """
 
     return tuple(dispatch_tool(session, call) for call in calls)
+
+
+# === Submit ===
+
+def _dispatch_submit_answer(session: EvidenceSession, call: ToolCall) -> ToolResult:
+    try:
+        submitted = finalize_submit_answer(
+            dict(call.arguments),
+            acquired=session.acquired_award_cards(),
+        )
+    except InvalidModelRequestError as exc:
+        return _failure(call, error=type(exc).__name__, detail=exc.detail)
+
+    return ToolResult(
+        call_id=call.id,
+        name=call.name,
+        ok=True,
+        data={
+            "ok": True,
+            "status": "submitted",
+            "dropped_citation_ids": list(submitted.dropped_citation_ids),
+        },
+        submitted=submitted,
+    )
 
 
 # === Handlers ===
@@ -176,7 +217,6 @@ def _get_award_evidence(session: EvidenceSession, args: dict[str, Any]) -> dict[
     if limit is not None:
         kwargs["limit"] = limit
     return session.get_award_evidence(**kwargs).to_dict()
-
 
 # Tool handlers mapping
 _HANDLERS: Mapping[str, Callable[[EvidenceSession, dict[str, Any]], dict[str, Any]]] = {
