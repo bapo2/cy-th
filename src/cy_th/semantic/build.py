@@ -323,28 +323,31 @@ def _embed_documents_memmap(
         lookup.execute(
             f"CREATE VIEW documents AS SELECT * FROM read_parquet('{parquet_sql}')"
         )
-        for start in range(0, document_count, batch_size):
-            stop = min(start + batch_size, document_count)
-            rows = lookup.execute(
-                f"""
-                SELECT {quote_ident('text')}
-                FROM documents
-                WHERE {quote_ident('row_index')} >= ?
-                  AND {quote_ident('row_index')} < ?
-                ORDER BY {quote_ident('row_index')} ASC
-                """,
-                [start, stop],
-            ).fetchall()
-            if len(rows) != stop - start:
+        # Keeps single cursor across embed batches
+        result = lookup.execute(
+            f"""
+            SELECT {quote_ident('text')}
+            FROM documents
+            ORDER BY {quote_ident('row_index')} ASC
+            """
+        )
+        start = 0
+        while rows := result.fetchmany(batch_size):
+            stop = start + len(rows)
+            if stop > document_count:
                 raise RuntimeError(
-                    f"expected {stop - start} document texts for rows [{start}, {stop}), "
-                    f"got {len(rows)}"
+                    f"expected {document_count} document texts, got at least {stop}"
                 )
             vectors = embedder.embed([str(row[0]) for row in rows])
             matrix[start:stop] = prepare_document_embeddings(
                 vectors,
                 expected_rows=len(rows),
                 expected_dim=dim,
+            )
+            start = stop
+        if start != document_count:
+            raise RuntimeError(
+                f"expected {document_count} document texts, got {start}"
             )
         matrix.flush()
     finally:
