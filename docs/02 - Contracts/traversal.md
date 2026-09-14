@@ -45,7 +45,33 @@ dataset.traverse_relationships(selection, include=None) → TraversalResult
 
 `TraversalResult` is a flat ordered tuple of `RelatedEntity` (no per-kind bundles).
 
-**Usage examples and module layout:** 🚧 TBD - filled after the implementation settles 🚧
+**Usage:**
+
+```python
+with ProcurementDataset.open(".data") as ds:
+    seed = ds.select_awards(award_ids)  # Or resolve_awards(...)
+    related = ds.traverse_relationships(seed)
+
+    recipient_ids = [
+        e.entity_id for e in related.entities if e.kind is EntityKind.RECIPIENT
+    ]
+    expanded = ds.resolve_awards(AwardFilters(recipient_ids=recipient_ids))
+
+    pop_ids = [
+        e.entity_id
+        for e in related.entities
+        if e.kind is EntityKind.LOCATION
+        and e.role is RelationRole.PLACE_OF_PERFORMANCE
+    ]
+    pop_awards = ds.resolve_awards(
+        AwardFilters(
+            location=LocationFilter(
+                role=RelationRole.PLACE_OF_PERFORMANCE,
+                location_ids=pop_ids,
+            )
+        )
+    )
+```
 
 ## 3. Enums and Result Model
 
@@ -161,7 +187,3 @@ Returned `entity_id` values are intended for existing `AwardFilters` / `Location
 | IDV                             | `parent_idv_ids`                                       |
 
 Multi-hop questions (e.g. "other agencies that awarded to these recipients") are **caller composition:** traverse → filter IDs → `resolve_awards` → traverse again. Traversal itself stays one-hop.
-
-## 9. Code Map
-
-🚧 TBD after implementation. 🚧

@@ -176,5 +176,8 @@ src/cy_th/query/
 ├── open.py       # CURRENT resolution + view registration
 ├── resolve.py    # resolve_awards
 ├── aggregate.py  # aggregate_activity
+├── traverse.py   # traverse_relationships
 └── dataset.py    # ProcurementDataset
 ```
+
+See [Traversal Contract](traversal.md) for more details on the related relationship traversal contract + API.
