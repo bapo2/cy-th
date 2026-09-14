@@ -63,7 +63,7 @@ def open_published_dataset(data_root: Path | str | None = None) -> OpenDataset:
     """Resolve `CURRENT`, validate the set layout, and register DuckDB views.
 
     #### Returns:
-        Pinned dataset with a `﹕memory﹕` DuckDB connection over absolute Parquet paths
+        Pinned dataset with an in-memory DuckDB connection over absolute Parquet paths
     """
 
     root = resolve_data_root(data_root)
