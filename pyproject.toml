@@ -39,6 +39,8 @@ pythonpath = ["src", "."]
 addopts = [
     "-ra",
     "--strict-markers",
+    "-m",
+    "not semantic_model",
     "--cov=cy_th",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
