@@ -44,7 +44,7 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = ["cy_th"]
-omit = ["*/cy_th/cli.py"]
+omit = ["*/cy_th/cli.py", "*/cy_th/__main__.py"]
 
 [tool.coverage.report]
 show_missing = true
