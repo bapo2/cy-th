@@ -22,6 +22,7 @@ class SemanticMetadata:
     embedding_dim: int
     normalize: bool
     metric: str
+    query_prefix: str
     document_count: int
     text_budget: int
     sentence_transformers_version: str | None

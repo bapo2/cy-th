@@ -25,16 +25,26 @@ DEFAULT_MODEL_ID: Final[str] = "BAAI/bge-small-en-v1.5"
 EMBEDDING_DIM: Final[int] = 384
 TEXT_BUDGET: Final[int] = 1800
 METRIC_COSINE: Final[str] = "cosine"
+QUERY_PREFIX: Final[str] = (
+    "Represent this sentence for searching relevant passages: "
+)
+"""BGE query-only instruction prepended at search time (not on documents)."""
+
 DEFAULT_EMBED_BATCH_SIZE: Final[int] = 64
 DEFAULT_SEARCH_CHUNK_SIZE: Final[int] = 8192
 
 
-# === Document IDs ===
+# === Document / Query Text ===
 
 def document_id_for_award(award_id: str) -> str:
     """Return the namespaced semantic document ID for an Award."""
 
     return f"award:{award_id}"
+
+def format_query_text(query: str, *, prefix: str = QUERY_PREFIX) -> str:
+    """Apply the locked query instruction prefix (documents stay unprefixed)."""
+
+    return f"{prefix}{query}"
 
 
 # === Derived Roots ===

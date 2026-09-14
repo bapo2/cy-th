@@ -27,6 +27,7 @@ from cy_th.semantic.paths import (
     DEFAULT_SEARCH_CHUNK_SIZE,
     documents_path,
     embeddings_path,
+    format_query_text,
     semantic_dir,
 )
 from cy_th.semantic.search import IdChunk, top_k_from_id_chunks
@@ -76,7 +77,7 @@ class SemanticIndex:
 
         #### Raises:
             - `MissingSemanticIndexError` / `IncompatibleSemanticIndexError` on artifact problems
-            - `IncompatibleSemanticIndexError` when `embedder` model/dim doesn't match metadata
+            - `IncompatibleSemanticIndexError` when `embedder` model/dim/revision doesn't match metadata
         """
 
         if chunk_size <= 0:
@@ -253,7 +254,9 @@ class SemanticIndex:
             )
 
     def _embed_query(self, query: str) -> npt.NDArray[np.float32]:
-        vectors = self._embedder.embed([query])
+        # Documents are embedded raw; queries use the BGE instruction prefix
+        prefixed = format_query_text(query, prefix=self._meta.query_prefix)
+        vectors = self._embedder.embed([prefixed])
         if vectors.shape != (1, self._meta.embedding_dim):
             raise InvalidSemanticQueryError(
                 f"embedder returned shape {vectors.shape}, "

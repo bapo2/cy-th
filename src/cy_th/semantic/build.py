@@ -30,6 +30,7 @@ from cy_th.semantic.paths import (
     EMBEDDINGS_NPY,
     METADATA_JSON,
     METRIC_COSINE,
+    QUERY_PREFIX,
     TEXT_BUDGET,
     documents_path,
     embeddings_path,
@@ -99,6 +100,7 @@ def build_semantic_index(
             embedding_dim=embedder.embedding_dim,
             normalize=True,
             metric=METRIC_COSINE,
+            query_prefix=QUERY_PREFIX,
             document_count=document_count,
             text_budget=text_budget,
             sentence_transformers_version=embedder.sentence_transformers_version,
@@ -161,6 +163,13 @@ def validate_semantic_artifacts(
     if meta.metric != METRIC_COSINE:
         raise IncompatibleSemanticIndexError(
             run_id=run_id, detail=f"metric must be {METRIC_COSINE!r}, got {meta.metric!r}"
+        )
+    if meta.query_prefix != QUERY_PREFIX:
+        raise IncompatibleSemanticIndexError(
+            run_id=run_id,
+            detail=(
+                f"query_prefix {meta.query_prefix!r} != locked {QUERY_PREFIX!r}"
+            ),
         )
     if not meta.normalize:
         raise IncompatibleSemanticIndexError(

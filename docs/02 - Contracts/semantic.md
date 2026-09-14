@@ -30,14 +30,17 @@ pinned canonical set (run-ID)
 
 ## 2. Embedding Configuration
 
-| Field     | Value                                                              |
-| :-------- | :----------------------------------------------------------------- |
-| Library   | `sentence-transformers` (optional install group `cy-th[semantic]`) |
-| Model     | `BAAI/bge-small-en-v1.5`                                           |
-| Dimension | `384`                                                              |
-| Dtype     | `float32`                                                          |
-| Normalize | `true` (document and query vectors)                                |
-| Metric    | cosine ≡ dot product on L2-normalized vectors                      |
+| Field        | Value                                                                    |
+| :----------- | :----------------------------------------------------------------------- |
+| Library      | `sentence-transformers` (optional install group `cy-th[semantic]`)       |
+| Model        | `BAAI/bge-small-en-v1.5`                                                 |
+| Dimension    | `384`                                                                    |
+| Dtype        | `float32`                                                                |
+| Normalize    | `true` (document and query vectors)                                      |
+| Metric       | cosine ≡ dot product on L2-normalized vectors                            |
+| Query prefix | `Represent this sentence for searching relevant passages: ` (query-only) |
+
+Documents are embedded **without** the query prefix. At search time the locked prefix is prepended to the user query before encoding.
 
 Query embeddings **must use the same model and configuration as the indexed documents.**
 
@@ -84,6 +87,7 @@ Query embeddings **must use the same model and configuration as the indexed docu
 - `embedding_dim`
 - `normalize`
 - `metric` (`cosine`)
+- `query_prefix`
 - `document_count`
 - `text_budget` (`1800`)
 - `sentence_transformers_version`
@@ -179,13 +183,14 @@ with ProcurementDataset.open(".data") as ds:
 **Open:**
 
 - Bind to dataset `run_id` and `session_id`
-- Reject missing or incompatible published artifacts (run-ID / dim / normalize / metric / shape mismatch; `model_revision` must match when index recorded one)
+- Reject missing or incompatible published artifacts (run-ID / dim / normalize / metric / `query_prefix` / shape mismatch; `model_revision` must match when the index recorded one)
 - Own memmap / file handles; support `close()` + context manager
 - Closing the dataset invalidates the index; subsequent search fails clearly
 
 **Query:**
 
-- Blank / whitespace-only query → error
+- Blank / whitespace-only query → error (checked before prefixing)
+- Query text is encoded as `query_prefix + query`
 - Zero / near-zero / non-finite query embedding → error
 - `min_score: float | None = None` → when set, drop hits below threshold; when absent, return best `top_k` (even if weak)
 
