@@ -18,7 +18,7 @@ DEFAULT_DATA_ROOT: Final[Path] = Path(".data")
 """Default data root (cwd-relative); overridden with `--out`."""
 
 CURRENT_NAME: Final[str] = "CURRENT"
-"""Filename of the published run-id pointer (plain text)."""
+"""Filename of the published run-ID pointer (plain text)."""
 
 SETS_DIRNAME: Final[str] = "sets"
 STAGING_DIRNAME: Final[str] = ".staging"
@@ -27,13 +27,13 @@ REFS_DIRNAME: Final[str] = "refs"
 _RUN_ID_RE: Final[re.Pattern[str]] = re.compile(
     r"^\d{8}T\d{6}Z_[0-9a-f]{6}$"
 )
-"""Regex for run-id form (`YYYYMMDDTHHMMSSZ_<6 hex chars>`)."""
+"""Regex for run-ID form (`YYYYMMDDTHHMMSSZ_<6 hex chars>`)."""
 
 
 # === Run IDs ===
 
 def new_run_id(*, when: datetime | None = None, suffix: str | None = None) -> str:
-    """Allocate a new materialization run id.
+    """Allocate a new materialization run ID.
 
     #### Form:
         `YYYYMMDDTHHMMSSZ_<6-char>` (UTC timestamp + hex suffix)
@@ -57,7 +57,7 @@ def new_run_id(*, when: datetime | None = None, suffix: str | None = None) -> st
     return f"{stamp}_{tail}"
 
 def is_run_id(value: str) -> bool:
-    """Return whether `value` matches the run-id form."""
+    """Return whether `value` matches the run-ID form."""
 
     return _RUN_ID_RE.fullmatch(value) is not None
 
@@ -111,7 +111,7 @@ def staging_db_path(root: Path, run_id: str) -> Path:
 # === CURRENT Pointer ===
 
 def read_current(root: Path) -> str | None:
-    """Read the published run-id from `CURRENT`, or `None` if missing/blank."""
+    """Read the published run-ID from `CURRENT`, or `None` if missing/blank."""
 
     path = current_path(root)
     if not path.is_file():
