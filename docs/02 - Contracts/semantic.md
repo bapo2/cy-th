@@ -97,7 +97,7 @@ Query embeddings **must use the same model and configuration as the indexed docu
 2. If `derived/<run-id>/semantic/` already exists → **refuse** unless `--force` (one published index per run-ID, regardless of model/config)
 3. Build into sibling staging `derived/<run-id>/.tmp-semantic/`
 4. Validate all artifacts (counts, shapes, metadata consistency, non-empty where required)
-5. Atomically replace (remove published dir if `--force`, then rename staging → `semantic/`)
+5. First build renames staging → `semantic/`; `--force` renames `semantic/` → `semantic.bak`, then staging → `semantic/`, restores the backup if that second rename fails, and deletes the backup after success
 
 Search opens **only** the final published directory, never staging.
 

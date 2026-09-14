@@ -106,13 +106,9 @@ def build_semantic_index(
         )
         write_metadata(staging, meta)
         validate_semantic_artifacts(staging, expected_run_id=run_id)
-
-        published.parent.mkdir(parents=True, exist_ok=True)
-        if published.exists():
-            shutil.rmtree(published)
-        staging.rename(published)
+        _publish_semantic_dir(staging=staging, published=published)
     except Exception:
-        # Staging left for inspection; published dir untouched if rename didn't run
+        # Staging left for inspection when publish did not succeed
         raise
 
     return SemanticBuildResult(
@@ -253,6 +249,34 @@ def validate_semantic_artifacts(
 
 
 # === Helpers ===
+
+def _publish_semantic_dir(*, staging: Path, published: Path) -> None:
+    """Publish staging into `published` without deleting a known-good index first.
+
+    #### Workflow:
+        1. First publish: `staging` → `published`.
+        2. Replace `published` → `published.bak`, then `staging` → `published`
+        3. Restore backup if the second rename fails; delete backup only after success
+    """
+
+    published.parent.mkdir(parents=True, exist_ok=True)
+    if not published.exists():
+        staging.rename(published)
+        return
+
+    backup = published.with_name(f"{published.name}.bak")
+    if backup.exists():
+        shutil.rmtree(backup)
+
+    published.rename(backup)
+    try:
+        staging.rename(published)
+    except Exception:
+        if not published.exists() and backup.exists():
+            backup.rename(published)
+        raise
+
+    shutil.rmtree(backup)
 
 def _close_memmap(array: npt.NDArray[np.generic]) -> None:
     """Release numpy memmap file handles (sometimes needed before rmtree/rename)."""
