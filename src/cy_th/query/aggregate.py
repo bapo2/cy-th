@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 from decimal import Decimal
-from typing import Sequence
+from typing import Literal, Sequence, overload
 import duckdb
 
 from cy_th.materialize.awards import TABLE_AWARDS
@@ -22,6 +22,26 @@ from cy_th.schema.db_types import quote_ident
 
 
 # === Public API ===
+
+@overload
+def aggregate_activity(  # Overload for `AwardActivityRow` to make type-checker happy
+    conn: duckdb.DuckDBPyConnection,
+    award_ids: Sequence[str],
+    window: ActivityWindow,
+    *,
+    group_by: Literal[GroupBy.AWARD] = GroupBy.AWARD,
+    limit: int | None = None,
+) -> list[AwardActivityRow]: ...
+
+@overload
+def aggregate_activity(  # Overload for `RecipientActivityRow` to make type-checker happy
+    conn: duckdb.DuckDBPyConnection,
+    award_ids: Sequence[str],
+    window: ActivityWindow,
+    *,
+    group_by: Literal[GroupBy.RECIPIENT],
+    limit: int | None = None,
+) -> list[RecipientActivityRow]: ...
 
 def aggregate_activity(
     conn: duckdb.DuckDBPyConnection,
