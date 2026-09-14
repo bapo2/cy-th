@@ -160,19 +160,21 @@ Awarding sub-agency: {subtier_name}
 
 ## 6. Search API
 
-**Assumed pattern:** (update this when we've confirmed it)
+**Pattern:**
 
 ```python
 with ProcurementDataset.open(".data") as ds:
-    with SemanticIndex.open(ds) as index:
+    with SemanticIndex.open(ds, embedder) as index:
         hits = index.search(
             "detection systems",
-            candidates=selection,  # optional
+            candidates=selection,  # Optional
             top_k=50,
             min_score=None,
         )
     semantic_selection = ds.select_awards([h.award_id for h in hits])
 ```
+
+`SemanticIndex.open` takes an `Embedder` whose `model_id` / dimension must match the published index (search doesn't import sentence-transformers itself).
 
 **Open:**
 
