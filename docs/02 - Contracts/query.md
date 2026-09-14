@@ -157,4 +157,12 @@ qualifying awards
 
 ## 7. Code Map
 
-🚧 TBD, add after implementation! 🚧
+```text
+src/cy_th/query/
+├── types.py      # Filter/result models
+├── errors.py     # Open/query failures
+├── open.py       # CURRENT resolution + view registration
+├── resolve.py    # resolve_awards
+├── aggregate.py  # aggregate_activity
+└── dataset.py    # ProcurementDataset
+```
