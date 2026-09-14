@@ -7,6 +7,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
+import secrets
 from types import TracebackType
 from typing import Collection, Self, Sequence
 
@@ -71,6 +72,11 @@ class EvidenceSession:
 
     _dataset: ProcurementDataset
     _closed: bool = False
+    _session_token: str = field(
+        default_factory=lambda: secrets.token_hex(6),
+        init=False,
+        repr=False,
+    )
     _selection_seq: int = field(default=0, init=False, repr=False)
     _selections: dict[str, _SelectionEntry] = field(
         default_factory=dict, init=False, repr=False
@@ -241,7 +247,9 @@ class EvidenceSession:
     ) -> SelectionRef:
         self._ensure_open()
         self._selection_seq += 1
-        ref = SelectionRef(id=f"sel_{self._selection_seq:04d}")
+        ref = SelectionRef(
+            id=f"sel_{self._session_token}_{self._selection_seq:04d}"
+        )
         self._selections[ref.id] = _SelectionEntry(
             selection=selection,
             source=source,

@@ -94,10 +94,11 @@ Bounded raw `award_ids` are allowed where naturally useful (especially `get_awar
 ## 4. Opaque Selection Refs
 
 ```text
-SelectionRef("sel_0001")  →  (internal) AwardSelection + provenance
+SelectionRef("sel_<session>_<n>") → (internal) AwardSelection + provenance
 ```
 
 - Public surface is an opaque id string only (no relation name / dataset session id)
+- IDs include a per-session token (`sel_<token>_<n>`) so refs cannot collide across sessions
 - Unknown, foreign-session, or post-close refs fail with a typed evidence error
 - Internal selections may represent arbitrarily large Award sets and remain valid inputs to aggregation / traversal
 
